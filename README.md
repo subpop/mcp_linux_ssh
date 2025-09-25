@@ -1,0 +1,221 @@
+# MCP Linux SSH Server
+
+An MCP (Model Context Protocol) server that enables AI assistants to run commands on remote Linux systems via SSH. This server provides a secure way for AI models to perform system administration tasks, troubleshoot issues, and execute commands on remote Linux machines.
+
+## Features
+
+- **Remote Command Execution**: Run any command on a remote Linux system via SSH
+- **Flexible Authentication**: Uses your existing SSH configuration and keys
+- **User Specification**: Option to specify which user to run commands as
+- **Secure**: Leverages SSH's built-in security features
+- **Expert Instructions**: Comes with built-in system administrator persona
+
+## Prerequisites
+
+- Rust toolchain (1.70 or later)
+- SSH client installed on your system
+- SSH access configured to your target Linux systems
+- SSH keys set up for passwordless authentication (recommended)
+
+## Building
+
+1. Clone this repository:
+```bash
+git clone https://github.com/subpop/mcp_linux_ssh
+cd mcp_linux_ssh
+```
+
+2. Build the project:
+```bash
+cargo build --release
+```
+
+The compiled binary will be available at `target/release/mcp_linux_ssh`.
+
+## Setup Instructions
+
+### Claude Desktop
+
+1. Build the project as described above
+2. Edit your Claude Desktop configuration file:
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+3. Add the MCP server configuration:
+```json
+{
+  "mcpServers": {
+    "linux-ssh": {
+      "command": "/path/to/your/mcp_linux_ssh/target/release/mcp_linux_ssh",
+      "args": [],
+      "env": {
+        "RUST_LOG": "info"
+      }
+    }
+  }
+}
+```
+
+4. Restart Claude Desktop
+
+### Gemini (via MCP)
+
+Gemini doesn't have native MCP support, but you can use it through compatible MCP clients or adapters. Follow the general MCP client setup pattern:
+
+1. Use an MCP-compatible client that supports Gemini
+2. Configure the server path: `/path/to/your/mcp_linux_ssh/target/release/mcp_linux_ssh`
+3. Set environment variables as needed
+
+### VSCode (via MCP Extension)
+
+1. Install an MCP extension for VSCode (such as the official MCP extension)
+2. Open VSCode settings (Cmd/Ctrl + ,)
+3. Search for "MCP" settings
+4. Add a new MCP server configuration:
+   - **Name**: `linux-ssh`
+   - **Command**: `/path/to/your/mcp_linux_ssh/target/release/mcp_linux_ssh`
+   - **Args**: `[]`
+   - **Environment**: `{"RUST_LOG": "info"}`
+
+### Cursor
+
+1. Build the project as described above
+2. Open Cursor settings
+3. Navigate to the MCP servers section
+4. Add a new server configuration:
+```json
+{
+  "name": "linux-ssh",
+  "command": "/path/to/your/mcp_linux_ssh/target/release/mcp_linux_ssh",
+  "args": [],
+  "env": {
+    "RUST_LOG": "info"
+  }
+}
+```
+
+### Goose
+
+1. Build the project as described above
+2. Create or edit your Goose configuration file (`~/.config/goose/config.yaml` or similar)
+3. Add the MCP server configuration:
+```yaml
+mcp_servers:
+  linux-ssh:
+    command: /path/to/your/mcp_linux_ssh/target/release/mcp_linux_ssh
+    args: []
+    env:
+      RUST_LOG: info
+```
+
+## SSH Configuration
+
+Before using this MCP server, ensure your SSH is properly configured:
+
+### 1. SSH Key Setup
+
+Generate an SSH key pair if you don't have one:
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+
+Copy your public key to the remote server:
+```bash
+ssh-copy-id user@remote-host
+```
+
+### 2. SSH Config File
+
+Create or edit `~/.ssh/config` to simplify connections:
+```
+Host myserver
+    HostName 192.168.1.100
+    User myuser
+    Port 22
+    IdentityFile ~/.ssh/id_ed25519
+```
+
+### 3. Test SSH Connection
+
+Verify you can connect without a password:
+```bash
+ssh myserver whoami
+```
+
+## Usage
+
+Once configured, you can use the following tool through your AI assistant:
+
+### `run_command_ssh`
+
+Executes a command on a remote Linux system.
+
+**Parameters:**
+- `command` (required): The command to execute
+- `args` (optional): Array of arguments to pass to the command
+- `remote_host` (required): The hostname or IP address of the remote system
+- `remote_user` (optional): The username to connect as (defaults to current user)
+
+**Examples:**
+
+```json
+{
+  "command": "ls",
+  "args": ["-la", "/home"],
+  "remote_host": "myserver",
+  "remote_user": "admin"
+}
+```
+
+```json
+{
+  "command": "systemctl",
+  "args": ["status", "nginx"],
+  "remote_host": "webserver.example.com"
+}
+```
+
+## Security Considerations
+
+- **SSH Key Security**: Use strong SSH keys and keep private keys secure
+- **Limited Scope**: Only grant access to systems you trust the AI to manage
+- **User Permissions**: The remote user should have appropriate but limited permissions
+- **Monitoring**: Consider logging SSH sessions for audit purposes
+- **Network Security**: Ensure SSH is properly configured (disable password auth, use non-standard ports, etc.)
+
+## Troubleshooting
+
+### Connection Issues
+
+1. **Permission Denied**: Ensure SSH keys are properly set up and the user has access
+2. **Host Key Verification Failed**: Add the host to your known_hosts file:
+   ```bash
+   ssh-keyscan -H remote-host >> ~/.ssh/known_hosts
+   ```
+3. **Command Not Found**: Ensure the command exists on the remote system and is in the PATH
+
+### Common SSH Issues
+
+- **Timeout**: Check network connectivity and SSH daemon status
+- **Authentication**: Verify SSH key permissions (600 for private key, 644 for public key)
+- **Path Issues**: Use absolute paths for commands when possible
+
+## Development
+
+To modify or extend this server:
+
+1. Edit the source code in `src/lib.rs`
+2. Add new tools by implementing functions with the `#[tool]` attribute
+3. Rebuild with `cargo build --release`
+4. Restart your MCP client to pick up changes
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- Code is properly formatted (`cargo fmt`)
+- All tests pass (`cargo test`)
+- Security best practices are followed
+
+## License
+
+See [LICENSE](LICENSE) file for details.

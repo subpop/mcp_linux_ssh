@@ -1,0 +1,20 @@
+[package]
+name = "mcp_linux_ssh"
+version = "0.1.0"
+edition = "2024"
+description = "MCP server to run operations on a Linux machine over SSH"
+authors = ["Link Dupont <link@sub-pop.net>"]
+repository = "https://github.com/subpop/mcp_linux_ssh"
+documentation = "https://github.com/subpop/mcp_linux_ssh"
+license = "MIT"
+
+[dependencies]
+anyhow = "1.0.99"
+rmcp = { version = "0.6.4", features = ["transport-io"] }
+schemars = "1.0.4"
+serde = "1.0.219"
+serde_json = "1.0.143"
+tokio = { version = "1.47.1", features = ["io-std", "rt-multi-thread"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["ansi", "env-filter"] }
+whoami = "1.5.2"
