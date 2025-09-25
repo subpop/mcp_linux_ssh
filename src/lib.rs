@@ -18,7 +18,6 @@ use rmcp::tool_router;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::process::Command;
-use whoami;
 
 /// Handler for the MCP server.
 #[derive(Clone, Debug, Default)]
