@@ -19,24 +19,24 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             name: mcp_linux_ssh-x86_64-linux
-            
+
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             name: mcp_linux_ssh-x86_64-linux-musl
-            
+
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             name: mcp_linux_ssh-aarch64-linux
-            
+
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             name: mcp_linux_ssh-x86_64-windows
             extension: .exe
-            
+
           - target: x86_64-apple-darwin
             os: macos-latest
             name: mcp_linux_ssh-x86_64-macos
-            
+
           - target: aarch64-apple-darwin
             os: macos-latest
             name: mcp_linux_ssh-aarch64-macos
@@ -104,11 +104,15 @@ jobs:
           retention-days: 30
 
   release:
-    name: Create Release
+    name: Prepare Release
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    
+
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      asset_matrix: ${{ steps.set_assets.outputs.asset_matrix }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -134,7 +138,6 @@ jobs:
         id: extract_notes
         run: |
           if [ -f CHANGELOG.md ]; then
-            # Extract notes between the first two version headers
             awk '/^## \[?v?[0-9]/{if(++count==2) exit} count==1 && !/^## \[?v?[0-9]/{print}' CHANGELOG.md > release_notes.txt
           else
             echo "Release ${{ github.ref_name }}" > release_notes.txt
@@ -144,21 +147,54 @@ jobs:
           echo "notes_file=release_notes.txt" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            release-assets/*
+          tag_name: ${{ github.ref_name }}
+          release_name: ${{ github.ref_name }}
           body_path: ${{ steps.extract_notes.outputs.notes_file }}
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Optional: Also build on pull requests to test the workflow
+      - name: Set asset matrix
+        id: set_assets
+        run: |
+          ASSET_LIST=$(ls release-assets)
+          # Convert asset list to JSON array for matrix
+          ASSET_MATRIX=$(printf '%s\n' "$ASSET_LIST" | jq -R -s -c 'split("\n")[:-1]')
+          echo "asset_matrix=$ASSET_MATRIX" >> $GITHUB_OUTPUT
+
+  upload:
+    name: Upload Release Assets
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        asset: ${{ fromJson(needs.release.outputs.asset_matrix) }}
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Upload asset to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: release-assets/${{ matrix.asset }}
+          asset_name: ${{ matrix.asset }}
+          asset_content_type: application/octet-stream
+
   test-build:
     name: Test Build
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
