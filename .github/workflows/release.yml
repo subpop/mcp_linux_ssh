@@ -151,8 +151,7 @@ jobs:
           body_path: ${{ steps.extract_notes.outputs.notes_file }}
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   # Optional: Also build on pull requests to test the workflow
   test-build:
