@@ -1,10 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+  release:
+    types: [created]
 
 env:
   CARGO_TERM_COLOR: always
@@ -96,122 +94,13 @@ jobs:
           mkdir dist
           copy target\${{ matrix.target }}\release\mcp_linux_ssh.exe dist\${{ matrix.name }}${{ matrix.extension }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.name }}
-          path: dist/${{ matrix.name }}${{ matrix.extension }}
-          retention-days: 30
-
-  release:
-    name: Prepare Release
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      asset_matrix: ${{ steps.set_assets.outputs.asset_matrix }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Prepare release assets
-        run: |
-          mkdir -p release-assets
-          find artifacts -type f -exec cp {} release-assets/ \;
-          ls -la release-assets/
-
-      - name: Create checksums
-        run: |
-          cd release-assets
-          sha256sum * > checksums.txt
-          cat checksums.txt
-
-      - name: Extract release notes
-        id: extract_notes
-        run: |
-          if [ -f CHANGELOG.md ]; then
-            awk '/^## \[?v?[0-9]/{if(++count==2) exit} count==1 && !/^## \[?v?[0-9]/{print}' CHANGELOG.md > release_notes.txt
-          else
-            echo "Release ${{ github.ref_name }}" > release_notes.txt
-            echo "" >> release_notes.txt
-            echo "Compiled binaries for Linux, Windows, and macOS." >> release_notes.txt
-          fi
-          echo "notes_file=release_notes.txt" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ${{ github.ref_name }}
-          body_path: ${{ steps.extract_notes.outputs.notes_file }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-
-      - name: Set asset matrix
-        id: set_assets
-        run: |
-          ASSET_LIST=$(ls release-assets)
-          # Convert asset list to JSON array for matrix
-          ASSET_MATRIX=$(printf '%s\n' "$ASSET_LIST" | jq -R -s -c 'split("\n")[:-1]')
-          echo "asset_matrix=$ASSET_MATRIX" >> $GITHUB_OUTPUT
-
-  upload:
-    name: Upload Release Assets
-    needs: release
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        asset: ${{ fromJson(needs.release.outputs.asset_matrix) }}
-
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          path: release-assets
-
-      - name: Upload asset to release
+      - name: Upload to release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: release-assets/${{ matrix.asset }}
-          asset_name: ${{ matrix.asset }}
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: dist/${{ matrix.name }}${{ matrix.extension }}
+          asset_name: ${{ matrix.name }}${{ matrix.extension }}
           asset_content_type: application/octet-stream
 
-  test-build:
-    name: Test Build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Build and test
-        run: |
-          cargo build --release
-          cargo test
