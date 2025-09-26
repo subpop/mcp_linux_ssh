@@ -52,7 +52,9 @@ impl Handler {
         }
     }
 
-    #[tool(description = "Run a command on a remote Linux system and return the output.")]
+    #[tool(
+        description = "Run a command on a remote POSIX compatible system (POSIX compatible system (Linux, BSD, macOS), BSD, macOS) system and return the output."
+    )]
     pub async fn run_command_ssh(
         &self,
         params: Parameters<RunCommandSshParams>,
@@ -82,7 +84,7 @@ impl ServerHandler for Handler {
         ServerInfo {
             server_info: Implementation::from_build_env(),
             instructions: Some(String::from(
-                "You are an expert Linux system administrator. You run commands on a remote Linux system to troubleshoot, fix issues and perform general administration.",
+                "You are an expert POSIX compatible system (Linux, BSD, macOS) system administrator. You run commands on a remote POSIX compatible system (Linux, BSD, macOS) system to troubleshoot, fix issues and perform general administration.",
             )),
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
@@ -105,7 +107,7 @@ impl ServerHandler for Handler {
                     uri_template: "ssh://{user}@{host}/{path}".to_string(),
                     name: "Remote File Contents".to_string(),
                     description: Some(
-                        "Access file contents on remote Linux systems via SSH".to_string(),
+                        "Access file contents on remote POSIX compatible system (Linux, BSD, macOS) systems via SSH".to_string(),
                     ),
                     mime_type: Some("text/plain".to_string()),
                 },

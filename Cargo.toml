@@ -2,7 +2,7 @@
 name = "mcp_linux_ssh"
 version = "0.1.0"
 edition = "2024"
-description = "MCP server to run operations on a Linux machine over SSH"
+description = "MCP server to run operations on a POSIX compatible system (Linux, BSD, macOS) machine over SSH"
 authors = ["Link Dupont <link@sub-pop.net>"]
 repository = "https://github.com/subpop/mcp_linux_ssh"
 documentation = "https://github.com/subpop/mcp_linux_ssh"

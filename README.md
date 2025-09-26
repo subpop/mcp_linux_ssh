@@ -1,10 +1,10 @@
-# MCP Linux SSH Server
+# MCP POSIX compatible system (Linux, BSD, macOS) SSH Server
 
-An MCP (Model Context Protocol) server that enables AI assistants to run commands and access files on remote Linux systems via SSH. This server provides a secure way for AI models to perform system administration tasks, troubleshoot issues, execute commands, and read configuration files on remote Linux machines.
+An MCP (Model Context Protocol) server that enables AI assistants to run commands and access files on remote POSIX compatible system (Linux, BSD, macOS) systems via SSH. This server provides a secure way for AI models to perform system administration tasks, troubleshoot issues, execute commands, and read configuration files on remote POSIX compatible system (Linux, BSD, macOS) machines.
 
 ## Features
 
-- **Remote Command Execution**: Run any command on a remote Linux system via SSH
+- **Remote Command Execution**: Run any command on a remote POSIX compatible system (Linux, BSD, macOS) system via SSH
 - **Remote File Access**: Read file contents from remote systems using resource templates
 - **Flexible Authentication**: Uses your existing SSH configuration and keys
 - **User Specification**: Option to specify which user to run commands as
@@ -151,7 +151,7 @@ Once configured, you can use the following capabilities through your AI assistan
 
 #### `run_command_ssh`
 
-Executes a command on a remote Linux system.
+Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) system.
 
 **Parameters:**
 - `command` (required): The command to execute
@@ -182,7 +182,7 @@ Executes a command on a remote Linux system.
 
 #### SSH File Access Resource Template
 
-Access file contents on remote Linux systems using the SSH resource template.
+Access file contents on remote POSIX compatible system (Linux, BSD, macOS) systems using the SSH resource template.
 
 **URI Format:** `ssh://{user}@{host}/{path}`
 
