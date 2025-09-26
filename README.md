@@ -1,10 +1,11 @@
 # MCP Linux SSH Server
 
-An MCP (Model Context Protocol) server that enables AI assistants to run commands on remote Linux systems via SSH. This server provides a secure way for AI models to perform system administration tasks, troubleshoot issues, and execute commands on remote Linux machines.
+An MCP (Model Context Protocol) server that enables AI assistants to run commands and access files on remote Linux systems via SSH. This server provides a secure way for AI models to perform system administration tasks, troubleshoot issues, execute commands, and read configuration files on remote Linux machines.
 
 ## Features
 
 - **Remote Command Execution**: Run any command on a remote Linux system via SSH
+- **Remote File Access**: Read file contents from remote systems using resource templates
 - **Flexible Authentication**: Uses your existing SSH configuration and keys
 - **User Specification**: Option to specify which user to run commands as
 - **Secure**: Leverages SSH's built-in security features
@@ -144,9 +145,11 @@ ssh myserver whoami
 
 ## Usage
 
-Once configured, you can use the following tool through your AI assistant:
+Once configured, you can use the following capabilities through your AI assistant:
 
-### `run_command_ssh`
+### Tools
+
+#### `run_command_ssh`
 
 Executes a command on a remote Linux system.
 
@@ -174,6 +177,30 @@ Executes a command on a remote Linux system.
   "remote_host": "webserver.example.com"
 }
 ```
+
+### Resources
+
+#### SSH File Access Resource Template
+
+Access file contents on remote Linux systems using the SSH resource template.
+
+**URI Format:** `ssh://{user}@{host}/{path}`
+
+**Examples:**
+
+- `ssh://admin@webserver.example.com/etc/nginx/nginx.conf` - Read nginx configuration as admin user
+- `ssh://192.168.1.100/var/log/syslog` - Read system log using current username
+- `ssh://user@myserver/home/user/.bashrc` - Read user's bash configuration
+- `ssh://root@database-server/etc/mysql/my.cnf` - Read MySQL configuration as root
+
+**Features:**
+- **Automatic User Detection**: If no user is specified, uses your current username
+- **URL Encoding Support**: Handles percent-encoded paths for special characters
+- **Comprehensive Error Handling**: Clear error messages for connection and file access issues
+- **Secure Authentication**: Uses your existing SSH keys and configuration
+
+**Usage in MCP Clients:**
+Most MCP clients will automatically discover and present this resource template. You can reference remote files directly using the SSH URI format, and the client will fetch the content transparently.
 
 ## Security Considerations
 
