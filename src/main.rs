@@ -7,9 +7,9 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> Result<(), Error> {
     // Initialize tracing with file and stderr logging.
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
+        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
         .with_writer(std::io::stderr)
-        .with_ansi(true)
+        .with_ansi(false)
         .init();
 
     tracing::info!("starting");
