@@ -32,7 +32,8 @@ pub struct Handler {
 
 #[derive(Clone, Deserialize, JsonSchema)]
 pub struct RunCommandSshParams {
-    /// The command to run.
+    /// The command to run. This must be a single command. Arguments must be
+    /// passed in the args parameter.
     pub command: String,
     /// The arguments to pass to the command.
     pub args: Vec<String>,
@@ -53,7 +54,7 @@ impl Handler {
     }
 
     #[tool(
-        description = "Run a command on a remote POSIX compatible system (POSIX compatible system (Linux, BSD, macOS), BSD, macOS) system and return the output."
+        description = "Run a command on a remote POSIX compatible system (Linux, BSD, macOS) system and return the output."
     )]
     pub async fn run_command_ssh(
         &self,
