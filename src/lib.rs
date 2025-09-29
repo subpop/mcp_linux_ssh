@@ -1,23 +1,19 @@
 use anyhow::Result;
-use rmcp::ErrorData;
-use rmcp::RoleServer;
-use rmcp::handler::server::ServerHandler;
-use rmcp::handler::server::router::prompt::PromptRouter;
-use rmcp::handler::server::tool::ToolRouter;
-use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::ListResourceTemplatesResult;
-use rmcp::model::RawResourceTemplate;
-use rmcp::model::{
-    CallToolResult, Content, GetPromptRequestParam, GetPromptResult, Implementation,
-    ListPromptsResult, PaginatedRequestParam, ReadResourceRequestParam, ReadResourceResult,
-    ResourceContents, ResourceTemplate, ServerCapabilities, ServerInfo,
+use rmcp::{
+    ErrorData, RoleServer,
+    handler::server::{
+        ServerHandler, router::prompt::PromptRouter, tool::ToolRouter, wrapper::Parameters,
+    },
+    model::{
+        CallToolResult, Content, GetPromptRequestParam, GetPromptResult, Implementation,
+        ListPromptsResult, ListResourceTemplatesResult, PaginatedRequestParam, RawResourceTemplate,
+        ReadResourceRequestParam, ReadResourceResult, ResourceContents, ResourceTemplate,
+        ServerCapabilities, ServerInfo,
+    },
+    prompt_handler, prompt_router,
+    service::RequestContext,
+    tool, tool_handler, tool_router,
 };
-use rmcp::prompt_handler;
-use rmcp::prompt_router;
-use rmcp::service::RequestContext;
-use rmcp::tool;
-use rmcp::tool_handler;
-use rmcp::tool_router;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::process::Command;
