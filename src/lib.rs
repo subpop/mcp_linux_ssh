@@ -160,6 +160,8 @@ impl ServerHandler for Handler {
     }
 }
 
+/// Run a command on a remote POSIX compatible system (Linux, BSD, macOS) system
+/// via SSH.
 fn run_ssh_command(
     user: &str,
     host: &str,
