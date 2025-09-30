@@ -229,7 +229,7 @@ fn exec_ssh(user: &str, host: &str, command: &str, args: &[&str]) -> Result<Stri
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(ErrorData::internal_error(
-            format!("Failed to run command: {}", stderr),
+            format!("Command executed unsuccessfully: {}", stderr),
             None,
         ));
     }
