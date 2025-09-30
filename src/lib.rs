@@ -50,7 +50,9 @@ impl Handler {
     }
 
     #[tool(
-        description = "Run a command on a remote POSIX compatible system (Linux, BSD, macOS) system and return the output."
+        description = "Run a command on a remote POSIX compatible system (Linux, \
+        BSD, macOS) system and return the output. sudo commands are allowed using \
+        this tool."
     )]
     pub async fn run_command_ssh(
         &self,
@@ -72,6 +74,39 @@ impl Handler {
             Err(e) => Err(e),
         }
     }
+
+    #[tool(
+        description = "Run a command on a remote POSIX compatible system (Linux, \
+        BSD, macOS) system and return the output. sudo commands are not allowed \
+        using this tool."
+    )]
+    pub async fn run_command_ssh_read_only(
+        &self,
+        params: Parameters<RunCommandSshParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let command = params.command;
+        let args = params.args;
+        let remote_user = params.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.remote_host;
+
+        if command.contains("sudo") {
+            return Err(ErrorData::invalid_request(
+                "sudo commands are not allowed using this tool. Use run_command_ssh instead.",
+                None,
+            ));
+        }
+
+        match run_ssh_command(
+            &remote_user,
+            &remote_host,
+            &command,
+            &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
+        ) {
+            Ok(output) => Ok(CallToolResult::success(vec![Content::text(output)])),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 #[tool_handler]
@@ -81,7 +116,13 @@ impl ServerHandler for Handler {
         ServerInfo {
             server_info: Implementation::from_build_env(),
             instructions: Some(String::from(
-                "You are an expert POSIX compatible system (Linux, BSD, macOS) system administrator. You run commands on a remote POSIX compatible system (Linux, BSD, macOS) system to troubleshoot, fix issues and perform general administration.",
+                "You are an expert POSIX compatible system (Linux, BSD, macOS) system \
+                administrator. You run commands on a remote POSIX compatible system \
+                (Linux, BSD, macOS) system to troubleshoot, fix issues and perform \
+                general administration. Use the tool run_command_ssh_read_only to \
+                whenever possible. If you are required to run a command using sudo, \
+                you must request that the user runs on your behalf manually and \
+                prompts you to continue when they have done so.",
             )),
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
