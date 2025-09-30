@@ -50,9 +50,50 @@ impl Handler {
     }
 
     #[tool(
+        description = "Run a command on the local system and return the output. \
+        Use this sparingly; only when needed to troubleshoot why connecting to the \
+        remote system is failing."
+    )]
+    pub async fn run_command_local(
+        &self,
+        params: Parameters<RunCommandSshParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let command = params.command;
+        let args = params.args;
+
+        if !params.remote_host.is_empty() || params.remote_user.is_some() {
+            return Ok(CallToolResult::error(vec![Content::text(
+                "remote_host and remote_user must be empty when using run_command_local"
+                    .to_string(),
+            )]));
+        }
+
+        match Command::new(&command).args(&args).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    Ok(CallToolResult::success(vec![Content::text(
+                        stdout.trim().to_string(),
+                    )]))
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    Ok(CallToolResult::error(vec![Content::text(format!(
+                        "Command failed: {}",
+                        stderr
+                    ))]))
+                }
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error running command: {}",
+                e
+            ))])),
+        }
+    }
+
+    #[tool(
         description = "Run a command on a remote POSIX compatible system (Linux, \
-        BSD, macOS) system and return the output. sudo commands are allowed using \
-        this tool."
+        BSD, macOS) system and return the output."
     )]
     pub async fn run_command_ssh(
         &self,
@@ -64,47 +105,17 @@ impl Handler {
         let remote_user = params.remote_user.unwrap_or(whoami::username());
         let remote_host = params.remote_host;
 
-        match run_ssh_command(
+        match exec_ssh(
             &remote_user,
             &remote_host,
             &command,
             &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
         ) {
             Ok(output) => Ok(CallToolResult::success(vec![Content::text(output)])),
-            Err(e) => Err(e),
-        }
-    }
-
-    #[tool(
-        description = "Run a command on a remote POSIX compatible system (Linux, \
-        BSD, macOS) system and return the output. sudo commands are not allowed \
-        using this tool."
-    )]
-    pub async fn run_command_ssh_read_only(
-        &self,
-        params: Parameters<RunCommandSshParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let params = params.0;
-        let command = params.command;
-        let args = params.args;
-        let remote_user = params.remote_user.unwrap_or(whoami::username());
-        let remote_host = params.remote_host;
-
-        if command.contains("sudo") {
-            return Err(ErrorData::invalid_request(
-                "sudo commands are not allowed using this tool. Use run_command_ssh instead.",
-                None,
-            ));
-        }
-
-        match run_ssh_command(
-            &remote_user,
-            &remote_host,
-            &command,
-            &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
-        ) {
-            Ok(output) => Ok(CallToolResult::success(vec![Content::text(output)])),
-            Err(e) => Err(e),
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error running command: {}",
+                e
+            ))])),
         }
     }
 }
@@ -119,10 +130,7 @@ impl ServerHandler for Handler {
                 "You are an expert POSIX compatible system (Linux, BSD, macOS) system \
                 administrator. You run commands on a remote POSIX compatible system \
                 (Linux, BSD, macOS) system to troubleshoot, fix issues and perform \
-                general administration. Use the tool run_command_ssh_read_only to \
-                whenever possible. If you are required to run a command using sudo, \
-                you must request that the user runs on your behalf manually and \
-                prompts you to continue when they have done so.",
+                general administration.",
             )),
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
@@ -184,7 +192,7 @@ impl ServerHandler for Handler {
                     .to_string();
 
                 // Use SSH to read the file contents
-                match run_ssh_command(&user, host, "cat", &[&file_path]) {
+                match exec_ssh(&user, host, "cat", &[&file_path]) {
                     Ok(output) => Ok(ReadResourceResult {
                         contents: vec![ResourceContents::text(output, request.uri)],
                     }),
@@ -203,12 +211,7 @@ impl ServerHandler for Handler {
 
 /// Run a command on a remote POSIX compatible system (Linux, BSD, macOS) system
 /// via SSH.
-fn run_ssh_command(
-    user: &str,
-    host: &str,
-    command: &str,
-    args: &[&str],
-) -> Result<String, ErrorData> {
+fn exec_ssh(user: &str, host: &str, command: &str, args: &[&str]) -> Result<String, ErrorData> {
     let output = Command::new("ssh")
         .arg(host)
         .args(["-l", user])
