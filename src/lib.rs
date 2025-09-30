@@ -50,6 +50,7 @@ impl Handler {
     }
 
     #[tool(
+        name = "Run",
         description = "Run a command on the local system and return the output. \
         Use this sparingly; only when needed to troubleshoot why connecting to the \
         remote system is failing."
@@ -92,6 +93,7 @@ impl Handler {
     }
 
     #[tool(
+        name = "SSH",
         description = "Run a command on a remote POSIX compatible system (Linux, \
         BSD, macOS) system and return the output."
     )]
@@ -125,7 +127,11 @@ impl Handler {
 impl ServerHandler for Handler {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            server_info: Implementation::from_build_env(),
+            server_info: Implementation {
+                name: String::from("Linux admin utilities"),
+                title: Some(String::from("POSIX administration using SSH")),
+                ..Default::default()
+            },
             instructions: Some(String::from(
                 "You are an expert POSIX compatible system (Linux, BSD, macOS) system \
                 administrator. You run commands on a remote POSIX compatible system \
