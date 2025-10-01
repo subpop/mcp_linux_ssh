@@ -165,8 +165,8 @@ impl Handler {
     #[tool(
         name = "SSH_Sudo",
         description = "Run a command on a remote POSIX compatible system (Linux, \
-        BSD, macOS) system and return the output. This tool permits commands to \
-        be run with sudo."
+        BSD, macOS) system and return the output. This tool explicitly runs \
+        commands with sudo."
     )]
     #[tracing::instrument(skip(self))]
     pub async fn run_command_ssh_sudo(
@@ -194,8 +194,10 @@ impl Handler {
             &remote_user,
             &remote_host,
             &private_key,
-            &command,
-            &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
+            "sudo",
+            &std::iter::once(command.as_str())
+                .chain(args.iter().map(|arg| arg.as_str()))
+                .collect::<Vec<&str>>(),
         ) {
             Ok(output) => {
                 tracing::info!("remote SSH command succeeded");
