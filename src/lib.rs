@@ -26,7 +26,7 @@ pub struct Handler {
     prompt_router: PromptRouter<Self>,
 }
 
-#[derive(Clone, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 pub struct RunCommandSshParams {
     /// The command to run. This must be a single command. Arguments must be
     /// passed in the args parameter.
@@ -37,6 +37,15 @@ pub struct RunCommandSshParams {
     pub remote_user: Option<String>,
     /// The host to run the command on.
     pub remote_host: String,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+pub struct RunCommandLocalParams {
+    /// The command to run. This must be a single command. Arguments must be
+    /// passed in the args parameter.
+    pub command: String,
+    /// The arguments to pass to the command.
+    pub args: Vec<String>,
 }
 
 #[tool_router]
@@ -55,40 +64,41 @@ impl Handler {
         Use this sparingly; only when needed to troubleshoot why connecting to the \
         remote system is failing."
     )]
+    #[tracing::instrument(skip(self))]
     pub async fn run_command_local(
         &self,
-        params: Parameters<RunCommandSshParams>,
+        params: Parameters<RunCommandLocalParams>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
         let command = params.command;
         let args = params.args;
 
-        if !params.remote_host.is_empty() || params.remote_user.is_some() {
-            return Ok(CallToolResult::error(vec![Content::text(
-                "remote_host and remote_user must be empty when using run_command_local"
-                    .to_string(),
-            )]));
-        }
+        tracing::info!(command = %command, args = ?args, "executing local command");
 
         match Command::new(&command).args(&args).output() {
             Ok(output) => {
                 if output.status.success() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
+                    tracing::info!(exit_code = ?output.status.code(), "local command succeeded");
                     Ok(CallToolResult::success(vec![Content::text(
                         stdout.trim().to_string(),
                     )]))
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
+                    tracing::error!(exit_code = ?output.status.code(), stderr = %stderr, "local command failed");
                     Ok(CallToolResult::error(vec![Content::text(format!(
                         "Command failed: {}",
                         stderr
                     ))]))
                 }
             }
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error running command: {}",
-                e
-            ))])),
+            Err(e) => {
+                tracing::error!(error = %e, "failed to execute local command");
+                Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error running command: {}",
+                    e
+                ))]))
+            }
         }
     }
 
@@ -97,6 +107,7 @@ impl Handler {
         description = "Run a command on a remote POSIX compatible system (Linux, \
         BSD, macOS) system and return the output."
     )]
+    #[tracing::instrument(skip(self))]
     pub async fn run_command_ssh(
         &self,
         params: Parameters<RunCommandSshParams>,
@@ -107,17 +118,31 @@ impl Handler {
         let remote_user = params.remote_user.unwrap_or(whoami::username());
         let remote_host = params.remote_host;
 
+        tracing::info!(
+            remote_user = %remote_user,
+            remote_host = %remote_host,
+            command = %command,
+            args = ?args,
+            "executing remote SSH command"
+        );
+
         match exec_ssh(
             &remote_user,
             &remote_host,
             &command,
             &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
         ) {
-            Ok(output) => Ok(CallToolResult::success(vec![Content::text(output)])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error running command: {}",
-                e
-            ))])),
+            Ok(output) => {
+                tracing::info!("remote SSH command succeeded");
+                Ok(CallToolResult::success(vec![Content::text(output)]))
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "remote SSH command failed");
+                Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error running command: {}",
+                    e
+                ))]))
+            }
         }
     }
 }
@@ -169,14 +194,19 @@ impl ServerHandler for Handler {
         })
     }
 
+    #[tracing::instrument(skip(self, _context))]
     async fn read_resource(
         &self,
         request: ReadResourceRequestParam,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, ErrorData> {
+        tracing::info!(uri = %request.uri, "reading resource");
+
         // Parse the URI into a URL struct
-        let url = Url::parse(&request.uri)
-            .map_err(|e| ErrorData::invalid_request(format!("Invalid URI: {}", e), None))?;
+        let url = Url::parse(&request.uri).map_err(|e| {
+            tracing::error!(error = %e, "invalid URI");
+            ErrorData::invalid_request(format!("Invalid URI: {}", e), None)
+        })?;
 
         match url.scheme() {
             "ssh" => {
@@ -190,6 +220,7 @@ impl ServerHandler for Handler {
                 let file_path = percent_encoding::percent_decode_str(url.path())
                     .decode_utf8()
                     .map_err(|e| {
+                        tracing::error!(error = %e, "invalid percent-encoding in path");
                         ErrorData::invalid_request(
                             format!("Invalid percent-encoding in path: {}", e),
                             None,
@@ -197,15 +228,24 @@ impl ServerHandler for Handler {
                     })?
                     .to_string();
 
+                tracing::info!(user = %user, host = %host, file_path = %file_path, "reading remote file via SSH");
+
                 // Use SSH to read the file contents
                 match exec_ssh(&user, host, "cat", &[&file_path]) {
-                    Ok(output) => Ok(ReadResourceResult {
-                        contents: vec![ResourceContents::text(output, request.uri)],
-                    }),
-                    Err(e) => Err(e),
+                    Ok(output) => {
+                        tracing::info!("successfully read remote file");
+                        Ok(ReadResourceResult {
+                            contents: vec![ResourceContents::text(output, request.uri)],
+                        })
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "failed to read remote file");
+                        Err(e)
+                    }
                 }
             }
             _ => {
+                tracing::error!(scheme = %url.scheme(), "invalid URI scheme");
                 return Err(ErrorData::invalid_request(
                     format!("Invalid URI scheme. Expected ssh://, got: {}", url.scheme()),
                     None,
@@ -217,22 +257,30 @@ impl ServerHandler for Handler {
 
 /// Run a command on a remote POSIX compatible system (Linux, BSD, macOS) system
 /// via SSH.
+#[tracing::instrument]
 fn exec_ssh(user: &str, host: &str, command: &str, args: &[&str]) -> Result<String, ErrorData> {
+    tracing::debug!("spawning SSH process");
+
     let output = Command::new("ssh")
         .arg(host)
         .args(["-l", user])
         .arg(command)
         .args(args)
         .output()
-        .map_err(|e| ErrorData::internal_error(format!("Failed to run command: {}", e), None))?;
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to spawn SSH process");
+            ErrorData::internal_error(format!("Failed to run command: {}", e), None)
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(exit_code = ?output.status.code(), stderr = %stderr, "SSH command failed");
         return Err(ErrorData::internal_error(
             format!("Command executed unsuccessfully: {}", stderr),
             None,
         ));
     }
 
+    tracing::debug!("SSH command completed successfully");
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
