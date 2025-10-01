@@ -2,14 +2,37 @@
 
 An MCP (Model Context Protocol) server that enables AI assistants to run commands and access files on remote POSIX compatible system (Linux, BSD, macOS) systems via SSH. This server provides a secure way for AI models to perform system administration tasks, troubleshoot issues, execute commands, and read configuration files on remote POSIX compatible system (Linux, BSD, macOS) machines.
 
+## Example Use Cases
+
+This MCP server enables LLMs to act as intelligent system administrators, capable of discovering and troubleshooting complex issues across your infrastructure. Here are some powerful examples:
+
+### 🔍 **Automated Issue Discovery**
+- **"My web application is responding slowly"** → LLM checks system resources (`top`, `free`, `df`), examines web server logs, analyzes network connections, and identifies the bottleneck
+- **"Users can't log in"** → LLM investigates authentication logs (`/var/log/auth.log`), checks service status (`systemctl status sshd`), verifies user accounts, and diagnoses the root cause
+- **"Database queries are timing out"** → LLM examines database logs, checks connection pools, analyzes slow query logs, and monitors system resources to pinpoint performance issues
+
+### 🛠️ **Intelligent Troubleshooting**
+- **Multi-server correlation**: LLM can simultaneously check logs and metrics across web servers, databases, and load balancers to trace issues through your entire stack
+- **Configuration analysis**: Automatically read and analyze config files (`nginx.conf`, `my.cnf`, etc.) to identify misconfigurations or optimization opportunities  
+- **Dependency tracking**: Follow service dependencies by checking systemd units, network connections, and process relationships
+
+### 🚀 **Operational Efficiency**
+- **Deployment verification**: After deployments, automatically verify services are running, configurations are correct, and applications are responding properly
+- **Incident response**: During outages, quickly gather diagnostic information from multiple systems to accelerate root cause analysis
+- **Documentation generation**: Automatically document system configurations, installed packages, and service dependencies
+
 ## Features
 
-- **Remote Command Execution**: Run any command on a remote POSIX compatible system (Linux, BSD, macOS) system via SSH
-- **Remote File Access**: Read file contents from remote systems using resource templates
+- **Three Command Execution Tools**: 
+  - Local command execution for SSH troubleshooting
+  - Remote SSH command execution (standard user permissions)
+  - Remote SSH command execution with sudo support
+- **Remote File Access**: Read file contents from remote systems using SSH resource templates
 - **Flexible Authentication**: Uses your existing SSH configuration and keys
 - **User Specification**: Option to specify which user to run commands as
 - **Secure**: Leverages SSH's built-in security features
 - **Expert Instructions**: Comes with built-in system administrator persona
+- **Comprehensive Error Handling**: Clear error messages for connection and execution issues
 
 ## Prerequisites
 
@@ -149,9 +172,25 @@ Once configured, you can use the following capabilities through your AI assistan
 
 ### Tools
 
-#### `run_command_ssh`
+#### `Run` (Local Command Execution)
 
-Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) system.
+Executes a command on the local system. This tool is primarily intended for troubleshooting SSH connectivity issues when remote commands fail.
+
+**Parameters:**
+- `command` (required): The command to execute locally
+- `args` (optional): Array of arguments to pass to the command
+
+**Example:**
+```json
+{
+  "command": "ssh",
+  "args": ["-v", "user@remote-host", "echo", "test"]
+}
+```
+
+#### `SSH` (Remote Command Execution)
+
+Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) system via SSH. This tool does **not** permit commands to be run with sudo.
 
 **Parameters:**
 - `command` (required): The command to execute
@@ -175,6 +214,36 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
   "command": "systemctl",
   "args": ["status", "nginx"],
   "remote_host": "webserver.example.com"
+}
+```
+
+#### `SSH Sudo` (Remote Command Execution with Sudo)
+
+Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) system via SSH. This tool **permits** commands to be run with sudo for administrative tasks.
+
+**Parameters:**
+- `command` (required): The command to execute (can include sudo)
+- `args` (optional): Array of arguments to pass to the command
+- `remote_host` (required): The hostname or IP address of the remote system
+- `remote_user` (optional): The username to connect as (defaults to current user)
+
+**Examples:**
+
+```json
+{
+  "command": "sudo",
+  "args": ["systemctl", "restart", "nginx"],
+  "remote_host": "webserver.example.com",
+  "remote_user": "admin"
+}
+```
+
+```json
+{
+  "command": "sudo",
+  "args": ["tail", "-f", "/var/log/syslog"],
+  "remote_host": "logserver",
+  "remote_user": "sysadmin"
 }
 ```
 
@@ -235,6 +304,10 @@ To modify or extend this server:
 2. Add new tools by implementing functions with the `#[tool]` attribute
 3. Rebuild with `cargo build --release`
 4. Restart your MCP client to pick up changes
+
+### Logging
+
+The server automatically logs all tool calls to `~/.local/state/mcp_linux_ssh/tool_calls.jsonl` (following XDG Base Directory specification) for debugging and audit purposes. Logs are rotated daily.
 
 ## Contributing
 
