@@ -105,10 +105,63 @@ impl Handler {
     #[tool(
         name = "SSH",
         description = "Run a command on a remote POSIX compatible system (Linux, \
-        BSD, macOS) system and return the output."
+        BSD, macOS) system and return the output. This tool does not permit commands \
+        to be run with sudo."
     )]
     #[tracing::instrument(skip(self))]
     pub async fn run_command_ssh(
+        &self,
+        params: Parameters<RunCommandSshParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let command = params.command;
+        let args = params.args;
+        let remote_user = params.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.remote_host;
+
+        if command.starts_with("sudo") {
+            return Err(ErrorData::invalid_request(
+                "sudo is not permitted for this tool".to_string(),
+                None,
+            ));
+        }
+
+        tracing::info!(
+            remote_user = %remote_user,
+            remote_host = %remote_host,
+            command = %command,
+            args = ?args,
+            "executing remote SSH command"
+        );
+
+        match exec_ssh(
+            &remote_user,
+            &remote_host,
+            &command,
+            &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
+        ) {
+            Ok(output) => {
+                tracing::info!("remote SSH command succeeded");
+                Ok(CallToolResult::success(vec![Content::text(output)]))
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "remote SSH command failed");
+                Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error running command: {}",
+                    e
+                ))]))
+            }
+        }
+    }
+
+    #[tool(
+        name = "SSH_Sudo",
+        description = "Run a command on a remote POSIX compatible system (Linux, \
+        BSD, macOS) system and return the output. This tool permits commands to \
+        be run with sudo."
+    )]
+    #[tracing::instrument(skip(self))]
+    pub async fn run_command_ssh_sudo(
         &self,
         params: Parameters<RunCommandSshParams>,
     ) -> Result<CallToolResult, ErrorData> {
