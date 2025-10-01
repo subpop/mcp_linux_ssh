@@ -10,6 +10,7 @@ license = "MIT"
 
 [dependencies]
 anyhow = "1.0.99"
+expand-tilde = "0.6.1"
 percent-encoding = "2.3.2"
 rmcp = { version = "0.6.4", features = ["transport-io"] }
 schemars = "1.0.4"

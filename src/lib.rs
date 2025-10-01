@@ -1,4 +1,5 @@
 use anyhow::Result;
+use expand_tilde::expand_tilde;
 use rmcp::{
     ErrorData, RoleServer,
     handler::server::{
@@ -16,7 +17,7 @@ use rmcp::{
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
-use std::process::Command;
+use std::{ops::Deref, process::Command};
 use url::Url;
 
 /// Handler for the MCP server.
@@ -37,6 +38,9 @@ pub struct RunCommandSshParams {
     pub remote_user: Option<String>,
     /// The host to run the command on.
     pub remote_host: String,
+    /// Path to the private key to use for authentication. Defaults to \
+    /// ~/.ssh/id_ed25519.
+    pub private_key: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -118,6 +122,9 @@ impl Handler {
         let args = params.args;
         let remote_user = params.remote_user.unwrap_or(whoami::username());
         let remote_host = params.remote_host;
+        let private_key = params
+            .private_key
+            .unwrap_or("~/.ssh/id_ed25519".to_string());
 
         if command.starts_with("sudo") {
             return Err(ErrorData::invalid_request(
@@ -137,6 +144,7 @@ impl Handler {
         match exec_ssh(
             &remote_user,
             &remote_host,
+            &private_key,
             &command,
             &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
         ) {
@@ -170,6 +178,9 @@ impl Handler {
         let args = params.args;
         let remote_user = params.remote_user.unwrap_or(whoami::username());
         let remote_host = params.remote_host;
+        let private_key = params
+            .private_key
+            .unwrap_or("~/.ssh/id_ed25519".to_string());
 
         tracing::info!(
             remote_user = %remote_user,
@@ -182,6 +193,7 @@ impl Handler {
         match exec_ssh(
             &remote_user,
             &remote_host,
+            &private_key,
             &command,
             &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
         ) {
@@ -284,7 +296,7 @@ impl ServerHandler for Handler {
                 tracing::info!(user = %user, host = %host, file_path = %file_path, "reading remote file via SSH");
 
                 // Use SSH to read the file contents
-                match exec_ssh(&user, host, "cat", &[&file_path]) {
+                match exec_ssh(&user, host, "~/.ssh/id_ed25519", "cat", &[&file_path]) {
                     Ok(output) => {
                         tracing::info!("successfully read remote file");
                         Ok(ReadResourceResult {
@@ -311,12 +323,34 @@ impl ServerHandler for Handler {
 /// Run a command on a remote POSIX compatible system (Linux, BSD, macOS) system
 /// via SSH.
 #[tracing::instrument]
-fn exec_ssh(user: &str, host: &str, command: &str, args: &[&str]) -> Result<String, ErrorData> {
+fn exec_ssh(
+    user: &str,
+    host: &str,
+    private_key: &str,
+    command: &str,
+    args: &[&str],
+) -> Result<String, ErrorData> {
     tracing::debug!("spawning SSH process");
 
     let output = Command::new("ssh")
         .arg(host)
         .args(["-l", user])
+        .args([
+            "-i",
+            expand_tilde(private_key)
+                .map_err(|e| {
+                    ErrorData::internal_error(format!("Failed to expand private key: {}", e), None)
+                })?
+                .deref()
+                .as_os_str()
+                .to_str()
+                .ok_or_else(|| {
+                    ErrorData::internal_error(
+                        format!("Failed to convert private key to string: {}", private_key),
+                        None,
+                    )
+                })?,
+        ])
         .arg(command)
         .args(args)
         .output()
