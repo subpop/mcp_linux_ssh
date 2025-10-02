@@ -27,6 +27,7 @@ This MCP server enables LLMs to act as intelligent system administrators, capabl
   - Local command execution for SSH troubleshooting
   - Remote SSH command execution (standard user permissions)
   - Remote SSH command execution with sudo support
+- **Configurable Timeouts**: Prevent commands from blocking indefinitely with per-command timeout settings
 - **Remote File Access**: Read file contents from remote systems using SSH resource templates
 - **Flexible Authentication**: Uses your existing SSH configuration and keys
 - **User Specification**: Option to specify which user to run commands as
@@ -221,12 +222,21 @@ Executes a command on the local system. This tool is primarily intended for trou
 **Parameters:**
 - `command` (required): The command to execute locally
 - `args` (optional): Array of arguments to pass to the command
+- `timeout_seconds` (optional): Timeout in seconds for command execution (default: 30, set to 0 to disable)
 
-**Example:**
+**Examples:**
 ```json
 {
   "command": "ssh",
   "args": ["-v", "user@remote-host", "echo", "test"]
+}
+```
+
+```json
+{
+  "command": "ping",
+  "args": ["-c", "5", "google.com"],
+  "timeout_seconds": 10
 }
 ```
 
@@ -240,6 +250,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 - `remote_host` (required): The hostname or IP address of the remote system
 - `remote_user` (optional): The username to connect as (defaults to current user)
 - `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `timeout_seconds` (optional): Timeout in seconds for command execution (default: 30, set to 0 to disable)
 
 **Examples:**
 
@@ -282,6 +293,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 - `remote_host` (required): The hostname or IP address of the remote system
 - `remote_user` (optional): The username to connect as (defaults to current user)
 - `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `timeout_seconds` (optional): Timeout in seconds for command execution (default: 30, set to 0 to disable)
 
 **Examples:**
 
@@ -324,6 +336,41 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 **Usage in MCP Clients:**
 Most MCP clients will automatically discover and present this resource template. You can reference remote files directly using the SSH URI format, and the client will fetch the content transparently.
 
+## Timeout Configuration
+
+All commands support configurable timeouts to prevent indefinite blocking.
+
+- **Default**: 30 seconds
+- **Disable**: Set `timeout_seconds` to `0` 
+- **Custom**: Set any positive integer (seconds)
+
+### Examples
+
+```json
+// Quick command
+{
+  "command": "whoami",
+  "remote_host": "server1",
+  "timeout_seconds": 5
+}
+
+// Long operation
+{
+  "command": "find",
+  "args": ["/", "-name", "*.log"],
+  "remote_host": "server1",
+  "timeout_seconds": 300
+}
+
+// No timeout (monitoring)
+{
+  "command": "tail",
+  "args": ["-f", "/var/log/syslog"],
+  "remote_host": "server1",
+  "timeout_seconds": 0
+}
+```
+
 ## Security Considerations
 
 - **SSH Key Security**: Use strong SSH keys and keep private keys secure
@@ -345,7 +392,7 @@ Most MCP clients will automatically discover and present this resource template.
 
 ### Common SSH Issues
 
-- **Timeout**: Check network connectivity and SSH daemon status
+- **Connection Timeout**: Check network connectivity and SSH daemon status
 - **Authentication**: Verify SSH key permissions (600 for private key, 644 for public key)
 - **Path Issues**: Use absolute paths for commands when possible
 
