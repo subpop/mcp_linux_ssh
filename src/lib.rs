@@ -185,8 +185,11 @@ impl Handler {
             &remote_user,
             &remote_host,
             &private_key,
-            &command,
-            &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
+            "sudo",
+            std::iter::once(command.as_str())
+                .chain(args.iter().map(|arg| arg.as_str()))
+                .collect::<Vec<&str>>()
+                .as_slice(),
         ) {
             Ok(output) => {
                 // The command executed successfully. This doesn't mean it
