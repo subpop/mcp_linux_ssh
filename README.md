@@ -247,21 +247,6 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 }
 ```
 
-### Resources
-
-#### SSH File Access Resource Template
-
-Access file contents on remote POSIX compatible system (Linux, BSD, macOS) systems using the SSH resource template.
-
-**URI Format:** `ssh://{user}@{host}/{path}`
-
-**Examples:**
-
-- `ssh://admin@webserver.example.com/etc/nginx/nginx.conf` - Read nginx configuration as admin user
-- `ssh://192.168.1.100/var/log/syslog` - Read system log using current username
-- `ssh://user@myserver/home/user/.bashrc` - Read user's bash configuration
-- `ssh://root@database-server/etc/mysql/my.cnf` - Read MySQL configuration as root
-
 **Features:**
 - **Automatic User Detection**: If no user is specified, uses your current username
 - **URL Encoding Support**: Handles percent-encoded paths for special characters
