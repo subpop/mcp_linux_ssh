@@ -122,7 +122,7 @@ impl Handler {
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
 
-        if command.starts_with("sudo") {
+        if command.contains("sudo") || args.iter().any(|arg| arg.contains("sudo")) {
             // sudo is not permitted for this tool.
             return Err(ErrorData::invalid_request(
                 "You many not run commands with sudo using this tool".to_string(),
