@@ -166,6 +166,48 @@ Verify you can connect without a password:
 ssh myserver whoami
 ```
 
+### 4. Custom Identity Files
+
+The MCP server supports specifying custom private key files through the `private_key` parameter. This is useful when:
+
+- You have multiple SSH keys for different servers or environments
+- You need to use a specific key that's not the default (`~/.ssh/id_ed25519`)
+- You're managing multiple remote systems with different authentication requirements
+
+**Key Features:**
+- **Default Behavior**: Uses `~/.ssh/id_ed25519` if no `private_key` is specified
+- **Tilde Expansion**: Supports `~` for home directory (e.g., `~/.ssh/my_key`)
+- **Absolute Paths**: Supports full paths (e.g., `/home/user/.ssh/production_key`)
+- **Relative Paths**: Supports relative paths from current working directory
+
+**Examples:**
+```json
+// Using default key (~/.ssh/id_ed25519)
+{
+  "command": "ls",
+  "remote_host": "server1"
+}
+
+// Using custom key with tilde expansion
+{
+  "command": "ls", 
+  "remote_host": "server2",
+  "private_key": "~/.ssh/production_key"
+}
+
+// Using absolute path
+{
+  "command": "ls",
+  "remote_host": "server3", 
+  "private_key": "/opt/keys/deployment_key"
+}
+```
+
+**Security Notes:**
+- Ensure private key files have correct permissions (600)
+- Keep private keys secure and never share them
+- Use different keys for different environments (dev/staging/production)
+
 ## Usage
 
 Once configured, you can use the following capabilities through your AI assistant:
@@ -197,6 +239,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 - `args` (optional): Array of arguments to pass to the command
 - `remote_host` (required): The hostname or IP address of the remote system
 - `remote_user` (optional): The username to connect as (defaults to current user)
+- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
 
 **Examples:**
 
@@ -217,6 +260,18 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 }
 ```
 
+**Using a custom private key:**
+
+```json
+{
+  "command": "ps",
+  "args": ["aux"],
+  "remote_host": "production-server",
+  "remote_user": "deploy",
+  "private_key": "~/.ssh/production_key"
+}
+```
+
 #### `SSH Sudo` (Remote Command Execution with Sudo)
 
 Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) system via SSH. This tool **permits** commands to be run with sudo for administrative tasks.
@@ -226,6 +281,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 - `args` (optional): Array of arguments to pass to the command
 - `remote_host` (required): The hostname or IP address of the remote system
 - `remote_user` (optional): The username to connect as (defaults to current user)
+- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
 
 **Examples:**
 
@@ -244,6 +300,18 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
   "args": ["tail", "-f", "/var/log/syslog"],
   "remote_host": "logserver",
   "remote_user": "sysadmin"
+}
+```
+
+**Using a custom private key with sudo:**
+
+```json
+{
+  "command": "sudo",
+  "args": ["systemctl", "restart", "apache2"],
+  "remote_host": "web01.example.com",
+  "remote_user": "admin",
+  "private_key": "/home/user/.ssh/admin_key"
 }
 ```
 
@@ -280,6 +348,34 @@ Most MCP clients will automatically discover and present this resource template.
 - **Timeout**: Check network connectivity and SSH daemon status
 - **Authentication**: Verify SSH key permissions (600 for private key, 644 for public key)
 - **Path Issues**: Use absolute paths for commands when possible
+
+### Private Key Issues
+
+1. **Wrong Key Path**: Ensure the `private_key` parameter points to the correct file:
+   ```bash
+   # Check if key exists
+   ls -la ~/.ssh/id_ed25519
+   
+   # Verify key permissions
+   chmod 600 ~/.ssh/id_ed25519
+   ```
+
+2. **Key Not Added to Agent**: If using SSH agent, ensure your key is loaded:
+   ```bash
+   ssh-add ~/.ssh/id_ed25519
+   ssh-add -l  # List loaded keys
+   ```
+
+3. **Multiple Keys**: When using multiple keys, specify the correct one:
+   ```json
+   {
+     "command": "whoami",
+     "remote_host": "server",
+     "private_key": "~/.ssh/specific_key"
+   }
+   ```
+
+4. **Key Format Issues**: Ensure your private key is in the correct format (OpenSSH format preferred)
 
 ## Development
 
