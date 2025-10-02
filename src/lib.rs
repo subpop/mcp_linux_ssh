@@ -16,7 +16,9 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
-use std::{ops::Deref, process::Command};
+use std::ops::Deref;
+use tokio::process::Command;
+use tokio::time::{Duration, timeout};
 
 /// Handler for the MCP server.
 #[derive(Clone, Debug, Default)]
@@ -39,6 +41,9 @@ pub struct RunCommandSshParams {
     /// Path to the private key to use for authentication. Defaults to \
     /// ~/.ssh/id_ed25519.
     pub private_key: Option<String>,
+    /// Timeout in seconds for the command execution. Defaults to 30 seconds.
+    /// Set to 0 to disable timeout.
+    pub timeout_seconds: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -48,6 +53,9 @@ pub struct RunCommandLocalParams {
     pub command: String,
     /// The arguments to pass to the command.
     pub args: Vec<String>,
+    /// Timeout in seconds for the command execution. Defaults to 30 seconds.
+    /// Set to 0 to disable timeout.
+    pub timeout_seconds: Option<u64>,
 }
 
 #[tool_router]
@@ -76,8 +84,28 @@ impl Handler {
 
         let command = params.0.command;
         let args = params.0.args;
+        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
 
-        match Command::new(&command).args(&args).output() {
+        let command_future = Command::new(&command).args(&args).output();
+
+        let result = if timeout_seconds == 0 {
+            // No timeout - run indefinitely
+            command_future.await
+        } else {
+            // Apply timeout
+            let timeout_duration = Duration::from_secs(timeout_seconds);
+            match timeout(timeout_duration, command_future).await {
+                Ok(result) => result,
+                Err(_) => {
+                    return Err(ErrorData::internal_error(
+                        format!("Local command timed out after {} seconds", timeout_seconds),
+                        None,
+                    ));
+                }
+            }
+        };
+
+        match result {
             Ok(output) => {
                 // The command executed successfully. This doesn't mean it
                 // succeeded, so output is returned as a successful tool call.
@@ -121,6 +149,7 @@ impl Handler {
             .0
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
+        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
 
         if command.contains("sudo") || args.iter().any(|arg| arg.contains("sudo")) {
             // sudo is not permitted for this tool.
@@ -136,7 +165,10 @@ impl Handler {
             &private_key,
             &command,
             &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
-        ) {
+            timeout_seconds,
+        )
+        .await
+        {
             Ok(output) => {
                 // The command executed successfully. This doesn't mean it
                 // succeeded, so output is returned as a successful tool call.
@@ -180,6 +212,7 @@ impl Handler {
             .0
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
+        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
 
         match exec_ssh(
             &remote_user,
@@ -190,7 +223,10 @@ impl Handler {
                 .chain(args.iter().map(|arg| arg.as_str()))
                 .collect::<Vec<&str>>()
                 .as_slice(),
-        ) {
+            timeout_seconds,
+        )
+        .await
+        {
             Ok(output) => {
                 // The command executed successfully. This doesn't mean it
                 // succeeded, so output is returned as a successful tool call.
@@ -241,42 +277,51 @@ impl ServerHandler for Handler {
 /// Run a command on a remote POSIX compatible system (Linux, BSD, macOS) system
 /// via SSH.
 #[tracing::instrument]
-fn exec_ssh(
+async fn exec_ssh(
     user: &str,
     host: &str,
     private_key: &str,
     command: &str,
     args: &[&str],
+    timeout_seconds: u64,
 ) -> Result<std::process::Output, ErrorData> {
-    let _span = tracing::span!(tracing::Level::TRACE, "exec_ssh", user = %user, host = %host, private_key = %private_key, command = %command, args = ?args);
+    let _span = tracing::span!(tracing::Level::TRACE, "exec_ssh", user = %user, host = %host, private_key = %private_key, command = %command, args = ?args, timeout_seconds = %timeout_seconds);
     let _enter = _span.enter();
 
-    let output = Command::new("ssh")
+    let expanded_key = expand_tilde(private_key).map_err(|e| {
+        ErrorData::internal_error(format!("Failed to expand private key path: {}", e), None)
+    })?;
+    let private_key_path = expanded_key.deref().as_os_str().to_str().ok_or_else(|| {
+        ErrorData::internal_error(
+            format!("Failed to convert private key to string: {}", private_key),
+            None,
+        )
+    })?;
+
+    let command_future = Command::new("ssh")
         .arg(host)
         .args(["-l", user])
-        .args([
-            "-i",
-            expand_tilde(private_key)
-                .map_err(|e| {
-                    ErrorData::internal_error(
-                        format!("Failed to expand private key path: {}", e),
-                        None,
-                    )
-                })?
-                .deref()
-                .as_os_str()
-                .to_str()
-                .ok_or_else(|| {
-                    ErrorData::internal_error(
-                        format!("Failed to convert private key to string: {}", private_key),
-                        None,
-                    )
-                })?,
-        ])
+        .args(["-i", private_key_path])
         .arg(command)
         .args(args)
-        .output()
-        .map_err(|e| ErrorData::internal_error(format!("Failed to run command: {}", e), None))?;
+        .output();
 
-    Ok(output)
+    let result = if timeout_seconds == 0 {
+        // No timeout - run indefinitely
+        command_future.await
+    } else {
+        // Apply timeout
+        let timeout_duration = Duration::from_secs(timeout_seconds);
+        match timeout(timeout_duration, command_future).await {
+            Ok(result) => result,
+            Err(_) => {
+                return Err(ErrorData::internal_error(
+                    format!("SSH command timed out after {} seconds", timeout_seconds),
+                    None,
+                ));
+            }
+        }
+    };
+
+    result.map_err(|e| ErrorData::internal_error(format!("Failed to run SSH command: {}", e), None))
 }
