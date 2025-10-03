@@ -543,7 +543,7 @@ dependencies = [
 
 [[package]]
 name = "mcp_linux_ssh"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "expand-tilde",
