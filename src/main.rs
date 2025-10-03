@@ -1,20 +1,32 @@
 use anyhow::Error;
+use directories::ProjectDirs;
 use mcp_linux_ssh::Handler;
 use rmcp::{ServiceExt, transport::stdio};
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-use xdg::BaseDirectories;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     // Initialize tracing with file and stderr logging.
 
-    // Determine the state directory according to XDG spec and create it if it
+    // Determine the state directory according to platform conventions and create it if it
     // doesn't exist.
-    let log_file_path: PathBuf = BaseDirectories::with_prefix("mcp_linux_ssh")
-        .place_state_file("tool_calls.jsonl")
-        .map_err(|e| Error::msg(format!("Failed to define log directory: {}", e)))?;
+    let project_dirs = ProjectDirs::from("net", "sub-pop", "mcp_linux_ssh")
+        .ok_or_else(|| Error::msg("Failed to determine project directories"))?;
+    let log_file_path: PathBuf = match project_dirs.state_dir() {
+        Some(state_dir) => state_dir.join("tool_calls.jsonl"),
+        None => {
+            // Fall back to manually determined user directories.
+            let user_dirs =
+                directories::UserDirs::new().expect("Failed to determine user directories");
+            user_dirs
+                .home_dir()
+                .join(".local")
+                .join("state")
+                .join("tool_calls.jsonl")
+        }
+    };
     let log_parent = log_file_path.parent().unwrap();
     create_dir_all(log_parent)
         .map_err(|e| Error::msg(format!("Failed to create log directory: {}", e)))?;

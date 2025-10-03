@@ -31,4 +31,4 @@ tracing-subscriber = { version = "0.3.20", features = [
 ] }
 url = "2.5.7"
 whoami = "1.5.2"
-xdg = "3.0.0"
+directories = "6.0.0"
