@@ -65,6 +65,25 @@ pub struct RunCommandLocalParams {
     pub timeout_seconds: Option<u64>,
 }
 
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+pub struct CopyFileParams {
+    /// The source file path on the local machine.
+    pub source: String,
+    /// The destination file path on the remote machine.
+    pub destination: String,
+    /// The user to connect as on the remote machine. Defaults to the current
+    /// username.
+    pub remote_user: Option<String>,
+    /// The host to copy the file to.
+    pub remote_host: String,
+    /// Path to the private key to use for authentication. Defaults to
+    /// ~/.ssh/id_ed25519.
+    pub private_key: Option<String>,
+    /// Timeout in seconds for the copy operation. Defaults to 30 seconds.
+    /// Set to 0 to disable timeout.
+    pub timeout_seconds: Option<u64>,
+}
+
 #[tool_router]
 #[prompt_router]
 impl Handler {
@@ -262,6 +281,97 @@ impl Handler {
             Err(e) => Err(ErrorData::internal_error(
                 // The command failed to execute. Return the error to the caller.
                 format!("Failed to execute remote SSH command with sudo: {}", e),
+                None,
+            )),
+        }
+    }
+
+    #[tool(
+        name = "Copy_File",
+        description = "Copy a file from the local machine to the remote machine using rsync. \
+        Preserves file attributes and creates a backup if the destination file already exists."
+    )]
+    #[tracing::instrument(skip(self))]
+    pub async fn copy_file(
+        &self,
+        params: Parameters<CopyFileParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let _span = tracing::span!(tracing::Level::TRACE, "copy_file", params = ?params);
+        let _enter = _span.enter();
+
+        let source = expand_tilde(&params.0.source).map_err(|e| {
+            ErrorData::internal_error(format!("Failed to expand source path: {}", e), None)
+        })?;
+        let destination = params.0.destination;
+        let remote_user = params.0.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.0.remote_host;
+        let private_key = params
+            .0
+            .private_key
+            .unwrap_or("~/.ssh/id_ed25519".to_string());
+        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
+
+        // Expand the private key path
+        let expanded_key = expand_tilde(&private_key).map_err(|e| {
+            ErrorData::internal_error(format!("Failed to expand private key path: {}", e), None)
+        })?;
+        let private_key_path = expanded_key.deref().as_os_str().to_str().ok_or_else(|| {
+            ErrorData::internal_error(
+                format!("Failed to convert private key to string: {}", private_key),
+                None,
+            )
+        })?;
+
+        let ssh_command = format!("ssh -i {}", private_key_path);
+        let remote_target = format!("{}@{}:{}", remote_user, remote_host, destination);
+
+        // Build the rsync command
+        // -a: archive mode (preserves permissions, timestamps, etc.)
+        // -v: verbose
+        // -b: create backups of existing files
+        // -e: specify ssh command with identity file
+        let command_future = Command::new("rsync")
+            .arg("-avb")
+            .arg("-e")
+            .arg(&ssh_command)
+            .arg(&source.to_string_lossy().into_owned())
+            .arg(&remote_target)
+            .output();
+
+        let result = if timeout_seconds == 0 {
+            // No timeout - run indefinitely
+            command_future.await
+        } else {
+            // Apply timeout
+            let timeout_duration = Duration::from_secs(timeout_seconds);
+            match timeout(timeout_duration, command_future).await {
+                Ok(result) => result,
+                Err(_) => {
+                    return Err(ErrorData::internal_error(
+                        format!("rsync command timed out after {} seconds", timeout_seconds),
+                        None,
+                    ));
+                }
+            }
+        };
+
+        match result {
+            Ok(output) => {
+                // The command executed successfully. This doesn't mean it
+                // succeeded, so output is returned as a successful tool call.
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let status_code = output.status.code();
+
+                Ok(CallToolResult::structured(json!({
+                    "status_code": status_code,
+                    "stdout": stdout.trim().to_string(),
+                    "stderr": stderr.trim().to_string(),
+                })))
+            }
+            Err(e) => Err(ErrorData::internal_error(
+                // The command failed to execute. Return the error to the caller.
+                format!("Failed to execute rsync command: {}", e),
                 None,
             )),
         }
