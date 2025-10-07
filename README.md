@@ -13,7 +13,7 @@ This MCP server enables LLMs to act as intelligent system administrators, capabl
 
 ### 🛠️ **Intelligent Troubleshooting**
 - **Multi-server correlation**: LLM can simultaneously check logs and metrics across web servers, databases, and load balancers to trace issues through your entire stack
-- **Configuration analysis**: Automatically read and analyze config files (`nginx.conf`, `my.cnf`, etc.) to identify misconfigurations or optimization opportunities  
+- **Configuration analysis**: Automatically read and analyze config files (`nginx.conf`, `my.cnf`, etc.) to identify misconfigurations or optimization opportunities
 - **Dependency tracking**: Follow service dependencies by checking systemd units, network connections, and process relationships
 
 ### 🚀 **Operational Efficiency**
@@ -23,12 +23,12 @@ This MCP server enables LLMs to act as intelligent system administrators, capabl
 
 ## Features
 
-- **Three Command Execution Tools**: 
+- **Three Command Execution Tools**:
   - Local command execution for SSH troubleshooting
   - Remote SSH command execution (standard user permissions)
   - Remote SSH command execution with sudo support
 - **Configurable Timeouts**: Prevent commands from blocking indefinitely with per-command timeout settings
-- **Remote File Access**: Read file contents from remote systems using SSH resource templates
+- **Public Key Discovery**: List available public keys from the local `~/.ssh` directory.
 - **Flexible Authentication**: Uses your existing SSH configuration and keys
 - **User Specification**: Option to specify which user to run commands as
 - **Secure**: Leverages SSH's built-in security features
@@ -191,7 +191,7 @@ The MCP server supports specifying custom private key files through the `private
 
 // Using custom key with tilde expansion
 {
-  "command": "ls", 
+  "command": "ls",
   "remote_host": "server2",
   "private_key": "~/.ssh/production_key"
 }
@@ -199,7 +199,7 @@ The MCP server supports specifying custom private key files through the `private
 // Using absolute path
 {
   "command": "ls",
-  "remote_host": "server3", 
+  "remote_host": "server3",
   "private_key": "/opt/keys/deployment_key"
 }
 ```
@@ -327,21 +327,32 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 }
 ```
 
-**Features:**
-- **Automatic User Detection**: If no user is specified, uses your current username
-- **URL Encoding Support**: Handles percent-encoded paths for special characters
-- **Comprehensive Error Handling**: Clear error messages for connection and file access issues
-- **Secure Authentication**: Uses your existing SSH keys and configuration
+### Resources
 
-**Usage in MCP Clients:**
-Most MCP clients will automatically discover and present this resource template. You can reference remote files directly using the SSH URI format, and the client will fetch the content transparently.
+This server exposes local system information as resources that can be read by the AI assistant.
+
+#### `public_keys`
+
+Lists all available public keys (`.pub` files) found in the user's `~/.ssh` directory.
+
+**URI:**
+`file:///public_keys`
+
+**Returns:**
+A comma-separated string of public key filenames.
+
+**Example Usage:**
+An AI assistant might read this resource to see which SSH keys are available for use in the `SSH` or `SSH Sudo` tools, especially when deciding which `private_key` to specify.
+
+**Example Return Value:**
+`id_rsa.pub,id_ed25519.pub,work_key.pub`
 
 ## Timeout Configuration
 
 All commands support configurable timeouts to prevent indefinite blocking.
 
 - **Default**: 30 seconds
-- **Disable**: Set `timeout_seconds` to `0` 
+- **Disable**: Set `timeout_seconds` to `0`
 - **Custom**: Set any positive integer (seconds)
 
 ### Examples
@@ -402,7 +413,7 @@ All commands support configurable timeouts to prevent indefinite blocking.
    ```bash
    # Check if key exists
    ls -la ~/.ssh/id_ed25519
-   
+
    # Verify key permissions
    chmod 600 ~/.ssh/id_ed25519
    ```
