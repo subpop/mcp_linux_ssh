@@ -47,6 +47,10 @@ pub struct RunCommandSshParams {
     /// Timeout in seconds for the command execution. Defaults to 30 seconds.
     /// Set to 0 to disable timeout.
     pub timeout_seconds: Option<u64>,
+    /// Additional options to pass to the ssh command. Each option should be a
+    /// key-value pair separated by an equal sign (=). The options are passed
+    /// to the ssh command using the -o flag.
+    pub options: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -153,6 +157,11 @@ impl Handler {
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
         let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
+        let options_vec: Option<Vec<&str>> = params
+            .0
+            .options
+            .as_ref()
+            .map(|v| v.iter().map(String::as_str).collect());
 
         if command.contains("sudo") || args.iter().any(|arg| arg.contains("sudo")) {
             // sudo is not permitted for this tool.
@@ -169,6 +178,7 @@ impl Handler {
             &command,
             &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
             timeout_seconds,
+            options_vec.as_deref(),
         )
         .await
         {
@@ -216,6 +226,11 @@ impl Handler {
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
         let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
+        let options_vec: Option<Vec<&str>> = params
+            .0
+            .options
+            .as_ref()
+            .map(|v| v.iter().map(String::as_str).collect());
 
         match exec_ssh(
             &remote_user,
@@ -227,6 +242,7 @@ impl Handler {
                 .collect::<Vec<&str>>()
                 .as_slice(),
             timeout_seconds,
+            options_vec.as_deref(),
         )
         .await
         {
@@ -421,6 +437,7 @@ async fn exec_ssh(
     command: &str,
     args: &[&str],
     timeout_seconds: u64,
+    options: Option<&[&str]>,
 ) -> Result<std::process::Output, ErrorData> {
     let _span = tracing::span!(tracing::Level::TRACE, "exec_ssh", user = %user, host = %host, private_key = %private_key, command = %command, args = ?args, timeout_seconds = %timeout_seconds);
     let _enter = _span.enter();
@@ -441,6 +458,12 @@ async fn exec_ssh(
         .args(["-i", private_key_path])
         .arg(command)
         .args(args)
+        .args(
+            options
+                .unwrap_or_default()
+                .iter()
+                .flat_map(|opt| ["-o", opt]),
+        )
         .output();
 
     let result = if timeout_seconds == 0 {
