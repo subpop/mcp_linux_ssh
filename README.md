@@ -23,10 +23,11 @@ This MCP server enables LLMs to act as intelligent system administrators, capabl
 
 ## Features
 
-- **Three Command Execution Tools**:
+- **Four Powerful Tools**:
   - Local command execution for SSH troubleshooting
   - Remote SSH command execution (standard user permissions)
   - Remote SSH command execution with sudo support
+  - File copying with rsync (preserves attributes, creates backups)
 - **Configurable Timeouts**: Prevent commands from blocking indefinitely with per-command timeout settings
 - **Public Key Discovery**: List available public keys from the local `~/.ssh` directory.
 - **Flexible Authentication**: Uses your existing SSH configuration and keys
@@ -326,6 +327,62 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
   "private_key": "/home/user/.ssh/admin_key"
 }
 ```
+
+#### `Copy_File` (File Transfer with Rsync)
+
+Copies a file from the local machine to a remote system using rsync. This tool automatically preserves file attributes (permissions, timestamps, ownership) and creates backups of existing files on the remote system.
+
+**Parameters:**
+- `source` (required): The path to the source file on the local machine
+- `destination` (required): The destination path on the remote machine
+- `remote_host` (required): The hostname or IP address of the remote system
+- `remote_user` (optional): The username to connect as (defaults to current user)
+- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `timeout_seconds` (optional): Timeout in seconds for the copy operation (default: 30, set to 0 to disable)
+
+**Features:**
+- **Archive mode**: Preserves permissions, timestamps, ownership, and other file attributes
+- **Automatic backups**: If a file exists at the destination, a backup is created with a `~` suffix
+- **Secure transfer**: Uses SSH for encrypted file transfer
+
+**Examples:**
+
+```json
+{
+  "source": "/home/user/config.yaml",
+  "destination": "/etc/myapp/config.yaml",
+  "remote_host": "webserver.example.com",
+  "remote_user": "deploy"
+}
+```
+
+```json
+{
+  "source": "./build/app.jar",
+  "destination": "/opt/myapp/app.jar",
+  "remote_host": "production-server",
+  "remote_user": "deploy",
+  "private_key": "~/.ssh/deployment_key",
+  "timeout_seconds": 60
+}
+```
+
+**Using with absolute paths:**
+
+```json
+{
+  "source": "/var/www/html/index.html",
+  "destination": "/var/www/html/index.html",
+  "remote_host": "backup-server",
+  "private_key": "/opt/keys/backup_key"
+}
+```
+
+**Backup Behavior:**
+When copying to an existing file, rsync creates a backup with the original filename plus a `~` suffix:
+- Original file: `/etc/myapp/config.yaml`
+- Backup file: `/etc/myapp/config.yaml~`
+- New file: `/etc/myapp/config.yaml` (updated)
 
 ### Resources
 
