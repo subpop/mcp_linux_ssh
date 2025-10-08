@@ -83,7 +83,7 @@ impl super::Handler {
             .arg("-avb")
             .arg("-e")
             .arg(&ssh_command)
-            .arg(&source.to_string_lossy().into_owned())
+            .arg(source.to_string_lossy().into_owned())
             .arg(&remote_target)
             .output();
 
