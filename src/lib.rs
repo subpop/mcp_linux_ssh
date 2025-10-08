@@ -31,18 +31,14 @@ pub struct Handler {
     prompt_router: PromptRouter<Self>,
 }
 
+/// Common SSH connection parameters shared across multiple tools.
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
-pub struct RunCommandSshParams {
-    /// The command to run. This must be a single command. Arguments must be
-    /// passed in the args parameter.
-    pub command: String,
-    /// The arguments to pass to the command.
-    pub args: Vec<String>,
+pub struct SshConnectionParams {
     /// The user to run the command as. Defaults to the current username.
     pub remote_user: Option<String>,
     /// The host to run the command on.
     pub remote_host: String,
-    /// Path to the private key to use for authentication. Defaults to \
+    /// Path to the private key to use for authentication. Defaults to
     /// ~/.ssh/id_ed25519.
     pub private_key: Option<String>,
     /// Timeout in seconds for the command execution. Defaults to 30 seconds.
@@ -52,6 +48,18 @@ pub struct RunCommandSshParams {
     /// key-value pair separated by an equal sign (=). The options are passed
     /// to the ssh command using the -o flag.
     pub options: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+pub struct RunCommandSshParams {
+    /// The command to run. This must be a single command. Arguments must be
+    /// passed in the args parameter.
+    pub command: String,
+    /// The arguments to pass to the command.
+    pub args: Vec<String>,
+    #[serde(flatten)]
+    #[schemars(flatten)]
+    pub ssh: SshConnectionParams,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -72,17 +80,9 @@ pub struct CopyFileParams {
     pub source: String,
     /// The destination file path on the remote machine.
     pub destination: String,
-    /// The user to connect as on the remote machine. Defaults to the current
-    /// username.
-    pub remote_user: Option<String>,
-    /// The host to copy the file to.
-    pub remote_host: String,
-    /// Path to the private key to use for authentication. Defaults to
-    /// ~/.ssh/id_ed25519.
-    pub private_key: Option<String>,
-    /// Timeout in seconds for the copy operation. Defaults to 30 seconds.
-    /// Set to 0 to disable timeout.
-    pub timeout_seconds: Option<u64>,
+    #[serde(flatten)]
+    #[schemars(flatten)]
+    pub ssh: SshConnectionParams,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
@@ -91,21 +91,9 @@ pub struct PatchFileParams {
     pub patch: String,
     /// The path to the file on the remote machine to patch.
     pub remote_file: String,
-    /// The user to connect as on the remote machine. Defaults to the current
-    /// username.
-    pub remote_user: Option<String>,
-    /// The host to apply the patch on.
-    pub remote_host: String,
-    /// Path to the private key to use for authentication. Defaults to
-    /// ~/.ssh/id_ed25519.
-    pub private_key: Option<String>,
-    /// Timeout in seconds for the patch operation. Defaults to 30 seconds.
-    /// Set to 0 to disable timeout.
-    pub timeout_seconds: Option<u64>,
-    /// Additional options to pass to the ssh command. Each option should be a
-    /// key-value pair separated by an equal sign (=). The options are passed
-    /// to the ssh command using the -o flag.
-    pub options: Option<Vec<String>>,
+    #[serde(flatten)]
+    #[schemars(flatten)]
+    pub ssh: SshConnectionParams,
 }
 
 #[tool_router]
@@ -193,15 +181,17 @@ impl Handler {
 
         let command = params.0.command;
         let args = params.0.args;
-        let remote_user = params.0.remote_user.unwrap_or(whoami::username());
-        let remote_host = params.0.remote_host;
+        let remote_user = params.0.ssh.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.0.ssh.remote_host;
         let private_key = params
             .0
+            .ssh
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
-        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
+        let timeout_seconds = params.0.ssh.timeout_seconds.unwrap_or(30);
         let options_vec: Option<Vec<&str>> = params
             .0
+            .ssh
             .options
             .as_ref()
             .map(|v| v.iter().map(String::as_str).collect());
@@ -262,15 +252,17 @@ impl Handler {
 
         let command = params.0.command;
         let args = params.0.args;
-        let remote_user = params.0.remote_user.unwrap_or(whoami::username());
-        let remote_host = params.0.remote_host;
+        let remote_user = params.0.ssh.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.0.ssh.remote_host;
         let private_key = params
             .0
+            .ssh
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
-        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
+        let timeout_seconds = params.0.ssh.timeout_seconds.unwrap_or(30);
         let options_vec: Option<Vec<&str>> = params
             .0
+            .ssh
             .options
             .as_ref()
             .map(|v| v.iter().map(String::as_str).collect());
@@ -327,13 +319,14 @@ impl Handler {
             ErrorData::internal_error(format!("Failed to expand source path: {}", e), None)
         })?;
         let destination = params.0.destination;
-        let remote_user = params.0.remote_user.unwrap_or(whoami::username());
-        let remote_host = params.0.remote_host;
+        let remote_user = params.0.ssh.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.0.ssh.remote_host;
         let private_key = params
             .0
+            .ssh
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
-        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
+        let timeout_seconds = params.0.ssh.timeout_seconds.unwrap_or(30);
 
         // Expand the private key path
         let expanded_key = expand_tilde(&private_key).map_err(|e| {
@@ -417,15 +410,17 @@ impl Handler {
 
         let patch = params.0.patch;
         let remote_file = params.0.remote_file;
-        let remote_user = params.0.remote_user.unwrap_or(whoami::username());
-        let remote_host = params.0.remote_host;
+        let remote_user = params.0.ssh.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.0.ssh.remote_host;
         let private_key = params
             .0
+            .ssh
             .private_key
             .unwrap_or("~/.ssh/id_ed25519".to_string());
-        let timeout_seconds = params.0.timeout_seconds.unwrap_or(30);
+        let timeout_seconds = params.0.ssh.timeout_seconds.unwrap_or(30);
         let options_vec: Option<Vec<&str>> = params
             .0
+            .ssh
             .options
             .as_ref()
             .map(|v| v.iter().map(String::as_str).collect());
