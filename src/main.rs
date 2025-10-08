@@ -24,6 +24,7 @@ async fn main() -> Result<(), Error> {
                 .home_dir()
                 .join(".local")
                 .join("state")
+                .join("mcp_linux_ssh")
                 .join("tool_calls.jsonl")
         }
     };
