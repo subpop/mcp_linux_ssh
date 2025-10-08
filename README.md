@@ -23,11 +23,12 @@ This MCP server enables LLMs to act as intelligent system administrators, capabl
 
 ## Features
 
-- **Four Powerful Tools**:
+- **Five Powerful Tools**:
   - Local command execution for SSH troubleshooting
   - Remote SSH command execution (standard user permissions)
   - Remote SSH command execution with sudo support
   - File copying with rsync (preserves attributes, creates backups)
+  - Patch application over SSH (apply diffs to remote files)
 - **Configurable Timeouts**: Prevent commands from blocking indefinitely with per-command timeout settings
 - **Public Key Discovery**: List available public keys from the local `~/.ssh` directory.
 - **Flexible Authentication**: Uses your existing SSH configuration and keys
@@ -383,6 +384,77 @@ When copying to an existing file, rsync creates a backup with the original filen
 - Original file: `/etc/myapp/config.yaml`
 - Backup file: `/etc/myapp/config.yaml~`
 - New file: `/etc/myapp/config.yaml` (updated)
+
+#### `Patch_File` (Apply Patches to Remote Files)
+
+Applies a patch/diff to a file on a remote system via SSH. The patch content is streamed through stdin over the SSH connection to the remote `patch` command. This tool is ideal for applying code changes, configuration updates, or bug fixes to remote files without transferring the entire file.
+
+**Parameters:**
+- `patch` (required): The patch/diff content to apply (unified diff format recommended)
+- `remote_file` (required): The path to the file on the remote machine to patch
+- `remote_host` (required): The hostname or IP address of the remote system
+- `remote_user` (optional): The username to connect as (defaults to current user)
+- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `timeout_seconds` (optional): Timeout in seconds for the patch operation (default: 30, set to 0 to disable)
+- `options` (optional): Additional SSH options to pass via `-o` flag (array of "key=value" strings)
+
+**Features:**
+- **Stdin streaming**: Patch content is securely streamed via SSH stdin
+- **Automatic strip detection**: The `patch` command automatically detects the appropriate `-p` strip level
+- **Unified diff support**: Works best with unified diff format (`diff -u` or `git diff`)
+- **Context preservation**: Maintains file context for accurate patching
+
+**Examples:**
+
+**Basic usage:**
+```json
+{
+  "patch": "--- config.yaml\n+++ config.yaml\n@@ -1,3 +1,3 @@\n-port: 8080\n+port: 9090\n",
+  "remote_file": "/etc/myapp/config.yaml",
+  "remote_host": "webserver.example.com",
+  "remote_user": "deploy"
+}
+```
+
+**Applying a Git diff:**
+```json
+{
+  "patch": "diff --git a/app.py b/app.py\nindex 1234567..abcdefg 100644\n--- a/app.py\n+++ b/app.py\n@@ -10,7 +10,7 @@ def main():\n-    return 'Hello'\n+    return 'Hello, World!'\n",
+  "remote_file": "/opt/myapp/app.py",
+  "remote_host": "production-server",
+  "remote_user": "appuser",
+  "private_key": "~/.ssh/deployment_key"
+}
+```
+
+**With custom SSH options:**
+```json
+{
+  "patch": "--- nginx.conf\n+++ nginx.conf\n@@ -5,1 +5,1 @@\n-worker_processes 2;\n+worker_processes 4;\n",
+  "remote_file": "/etc/nginx/nginx.conf",
+  "remote_host": "192.168.1.100",
+  "remote_user": "root",
+  "options": ["StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"]
+}
+```
+
+**Typical Workflow:**
+1. Generate a diff locally: `diff -u original.txt modified.txt > changes.patch`
+2. Read the patch content
+3. Use `Patch_File` to apply it to the remote file
+4. Verify the changes with `SSH` tool (e.g., `cat /path/to/file`)
+
+**Important Notes:**
+- The `patch` command must be installed on the remote system
+- Ensure the file to be patched exists on the remote system
+- If the patch fails to apply cleanly, check the output for conflicts
+- The remote file path should be absolute or relative to the remote user's home directory
+- For large patches or binary files, consider using `Copy_File` instead
+
+**Common Patch Formats:**
+- **Unified diff** (recommended): `diff -u old.txt new.txt`
+- **Git diff**: `git diff file.txt`
+- **Context diff**: `diff -c old.txt new.txt`
 
 ### Resources
 
