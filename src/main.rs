@@ -1,7 +1,17 @@
+mod handler;
+mod tools;
+
 use anyhow::Error;
 use directories::ProjectDirs;
-use mcp_linux_ssh::Handler;
-use rmcp::{ServiceExt, transport::stdio};
+use handler::POSIXSSHHandler;
+use rust_mcp_sdk::{
+    McpServer, StdioTransport, TransportOptions,
+    mcp_server::server_runtime,
+    schema::{
+        Implementation, InitializeResult, LATEST_PROTOCOL_VERSION, ServerCapabilities,
+        ServerCapabilitiesTools,
+    },
+};
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -52,14 +62,41 @@ async fn main() -> Result<(), Error> {
         .init();
 
     tracing::info!("starting");
-    let handler = Handler::new();
-    let server = handler
-        .serve(stdio())
+
+    // Define server details & capabilities
+    let server_details = InitializeResult {
+        server_info: Implementation {
+            name: env!("CARGO_PKG_NAME").to_string(),
+            title: Some("Linux SSH Administration".to_string()),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        },
+        capabilities: ServerCapabilities {
+            tools: Some(ServerCapabilitiesTools { list_changed: None }),
+            ..Default::default()
+        },
+        instructions: Some(String::from(
+            "You are an expert POSIX compatible system (Linux, BSD, macOS) system \
+            administrator. You run commands on a remote POSIX compatible system \
+            (Linux, BSD, macOS) system to troubleshoot, fix issues and perform \
+            general administration.",
+        )),
+        meta: None,
+        protocol_version: LATEST_PROTOCOL_VERSION.to_string(),
+    };
+
+    // Create transport with default options
+    let transport = StdioTransport::new(TransportOptions::default())
+        .map_err(|e| Error::msg(format!("{}", e)))?;
+
+    // Create custom handler
+    let handler = POSIXSSHHandler {};
+
+    // Create Server
+    let server = server_runtime::create_server(server_details, transport, handler);
+
+    // Start!
+    server
+        .start()
         .await
-        .inspect_err(|e| tracing::error!("Error: {:?}", e))?;
-
-    tracing::info!("started");
-    server.waiting().await?;
-
-    Ok(())
+        .map_err(|e| Error::msg(format!("{}", e)))
 }
