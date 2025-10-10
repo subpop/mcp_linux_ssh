@@ -54,7 +54,7 @@ cd mcp_linux_ssh
 
 2. Build the project:
 ```bash
-cargo build --release
+make build
 ```
 
 The compiled binary will be available at `target/release/mcp_linux_ssh`.
@@ -570,8 +570,13 @@ To modify or extend this server:
 
 1. Edit the source code in `src/lib.rs`
 2. Add new tools by implementing functions with the `#[tool]` attribute
-3. Rebuild with `cargo build --release`
+3. Rebuild with `make build`
 4. Restart your MCP client to pick up changes
+
+### Testing
+
+Run tests with `make sanity test`.
+Any formatting errors found by the sanity tests can be corrected with `make format`.
 
 ### Logging
 
