@@ -96,6 +96,15 @@ pub struct PatchFileParams {
     pub ssh: SshConnectionParams,
 }
 
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
+pub struct ServiceStatusParams {
+    /// The name of the service to check
+    pub service_name: Option<String>,
+    #[serde(flatten)]
+    #[schemars(flatten)]
+    pub ssh: SshConnectionParams,
+}
+
 #[tool_router]
 #[prompt_router]
 impl Handler {
@@ -509,6 +518,68 @@ impl Handler {
                 })))
             }
             Err(e) => Err(e),
+        }
+    }
+
+    #[tool(
+        description = "Get the status of a systemd service on a remote Linux host.",
+        annotations(title = "Get service status", read_only_hint = true,)
+    )]
+    #[tracing::instrument(skip(self))]
+    pub async fn get_service_status(
+        &self,
+        params: Parameters<ServiceStatusParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let _span = tracing::span!(tracing::Level::TRACE, "get_service_status", params = ?params);
+        let _enter = _span.enter();
+
+        let command = "systemctl";
+        let service_name = params.0.service_name.to_owned().unwrap();
+        let args: [String; 3] = ["--no-pager".to_string(), "status".to_string(), service_name];
+        let remote_user = params.0.ssh.remote_user.unwrap_or(whoami::username());
+        let remote_host = params.0.ssh.remote_host;
+        let private_key = params
+            .0
+            .ssh
+            .private_key
+            .unwrap_or("~/.ssh/id_ed25519".to_string());
+        let timeout_seconds = params.0.ssh.timeout_seconds.unwrap_or(30);
+        let options_vec: Option<Vec<&str>> = params
+            .0
+            .ssh
+            .options
+            .as_ref()
+            .map(|v| v.iter().map(String::as_str).collect());
+
+        match exec_ssh(
+            &remote_user,
+            &remote_host,
+            &private_key,
+            command,
+            &args.iter().map(|arg| arg.as_str()).collect::<Vec<&str>>(),
+            timeout_seconds,
+            options_vec.as_deref(),
+        )
+        .await
+        {
+            Ok(output) => {
+                // The command executed successfully. This doesn't mean it
+                // succeeded, so output is returned as a successful tool call.
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let status_code = output.status.code();
+
+                Ok(CallToolResult::structured(json!({
+                    "status_code": status_code,
+                    "stdout": stdout.trim().to_string(),
+                    "stderr": stderr.trim().to_string(),
+                })))
+            }
+            Err(e) => Err(ErrorData::internal_error(
+                // The command failed to execute. Return the error to the caller.
+                format!("Failed to execute remote SSH command: {}", e),
+                None,
+            )),
         }
     }
 }
