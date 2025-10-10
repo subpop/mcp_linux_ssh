@@ -1,9 +1,6 @@
-mod handler;
-mod tools;
-
 use anyhow::Error;
 use directories::ProjectDirs;
-use handler::POSIXSSHHandler;
+use mcp_linux_ssh::handler::POSIXSSHHandler;
 use rust_mcp_sdk::{
     McpServer, StdioTransport, TransportOptions,
     mcp_server::server_runtime,
