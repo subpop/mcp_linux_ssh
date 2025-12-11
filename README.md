@@ -4,38 +4,38 @@ An MCP (Model Context Protocol) server that enables AI assistants to run command
 
 ## Example Use Cases
 
-This MCP server enables LLMs to act as intelligent system administrators, capable of discovering and troubleshooting complex issues across your infrastructure. Here are some powerful examples:
+This MCP server enables LLMs to perform system administration tasks across remote infrastructure.
 
-### 🔍 **Automated Issue Discovery**
-- **"My web application is responding slowly"** → LLM checks system resources (`top`, `free`, `df`), examines web server logs, analyzes network connections, and identifies the bottleneck
-- **"Users can't log in"** → LLM investigates authentication logs (`/var/log/auth.log`), checks service status (`systemctl status sshd`), verifies user accounts, and diagnoses the root cause
-- **"Database queries are timing out"** → LLM examines database logs, checks connection pools, analyzes slow query logs, and monitors system resources to pinpoint performance issues
+### Issue Discovery
+- **Web performance** → Check system resources (`top`, `free`, `df`), examine web server logs, analyze network connections
+- **Authentication failures** → Investigate authentication logs (`/var/log/auth.log`), check service status (`systemctl status sshd`), verify user accounts
+- **Database timeouts** → Examine database logs, check connection pools, analyze slow query logs, monitor system resources
 
-### 🛠️ **Intelligent Troubleshooting**
-- **Multi-server correlation**: LLM can simultaneously check logs and metrics across web servers, databases, and load balancers to trace issues through your entire stack
-- **Configuration analysis**: Automatically read and analyze config files (`nginx.conf`, `my.cnf`, etc.) to identify misconfigurations or optimization opportunities
-- **Dependency tracking**: Follow service dependencies by checking systemd units, network connections, and process relationships
+### Troubleshooting
+- **Comparative analysis**: Check for differences between different web servers, databases, and load balancers
+- **Configuration analysis**: Read and analyze config files (`nginx.conf`, `my.cnf`, etc.)
+- **Dependency tracking**: Check systemd units, network connections, and process relationships
 
-### 🚀 **Operational Efficiency**
-- **Deployment verification**: After deployments, automatically verify services are running, configurations are correct, and applications are responding properly
-- **Incident response**: During outages, quickly gather diagnostic information from multiple systems to accelerate root cause analysis
-- **Documentation generation**: Automatically document system configurations, installed packages, and service dependencies
+### Operations
+- **Deployment verification**: Verify services are running, configurations are correct, and applications are responding
+- **Incident response**: Gather diagnostic information from multiple systems
+- **Documentation generation**: Document system configurations, installed packages, and service dependencies
 
 ## Features
 
-- **Five Powerful Tools**:
+- **Tools**:
   - Local command execution for SSH troubleshooting
   - Remote SSH command execution (standard user permissions)
   - Remote SSH command execution with sudo support
   - File copying with rsync (preserves attributes, creates backups)
   - Patch application over SSH (apply diffs to remote files)
-- **Configurable Timeouts**: Prevent commands from blocking indefinitely with per-command timeout settings
-- **Public Key Discovery**: List available public keys from the local `~/.ssh` directory.
-- **Flexible Authentication**: Uses your existing SSH configuration and keys
-- **User Specification**: Option to specify which user to run commands as
-- **Secure**: Leverages SSH's built-in security features
-- **Expert Instructions**: Comes with built-in system administrator persona
-- **Comprehensive Error Handling**: Clear error messages for connection and execution issues
+- **Configurable timeouts**: Per-command timeout settings to prevent blocking
+- **Public key discovery**: List available public keys from `~/.ssh` directory
+- **Authentication**: Uses existing SSH configuration and keys
+- **User specification**: Specify which user to run commands as
+- **Security**: Leverages SSH's built-in security features
+- **System administrator persona**: Built-in instructions for system administration tasks
+- **Error handling**: Error messages for connection and execution issues
 
 ## Prerequisites
 
@@ -177,11 +177,11 @@ The MCP server supports specifying custom private key files through the `private
 - You need to use a specific key that's not the default (`~/.ssh/id_ed25519`)
 - You're managing multiple remote systems with different authentication requirements
 
-**Key Features:**
-- **Default Behavior**: Uses `~/.ssh/id_ed25519` if no `private_key` is specified
-- **Tilde Expansion**: Supports `~` for home directory (e.g., `~/.ssh/my_key`)
-- **Absolute Paths**: Supports full paths (e.g., `/home/user/.ssh/production_key`)
-- **Relative Paths**: Supports relative paths from current working directory
+**Behavior:**
+- **Default**: Uses `~/.ssh/id_ed25519` if no `private_key` is specified
+- **Tilde expansion**: Supports `~` for home directory (e.g., `~/.ssh/my_key`)
+- **Absolute paths**: Supports full paths (e.g., `/home/user/.ssh/production_key`)
+- **Relative paths**: Supports relative paths from current working directory
 
 **Examples:**
 ```json
@@ -206,7 +206,7 @@ The MCP server supports specifying custom private key files through the `private
 }
 ```
 
-**Security Notes:**
+**Security:**
 - Ensure private key files have correct permissions (600)
 - Keep private keys secure and never share them
 - Use different keys for different environments (dev/staging/production)
@@ -331,7 +331,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 
 #### `Copy_File` (File Transfer with Rsync)
 
-Copies a file from the local machine to a remote system using rsync. This tool automatically preserves file attributes (permissions, timestamps, ownership) and creates backups of existing files on the remote system.
+Copies a file from the local machine to a remote system using rsync. Preserves file attributes (permissions, timestamps, ownership) and creates backups of existing files on the remote system.
 
 **Parameters:**
 - `source` (required): The path to the source file on the local machine
@@ -387,7 +387,7 @@ When copying to an existing file, rsync creates a backup with the original filen
 
 #### `Patch_File` (Apply Patches to Remote Files)
 
-Applies a patch/diff to a file on a remote system via SSH. The patch content is streamed through stdin over the SSH connection to the remote `patch` command. This tool is ideal for applying code changes, configuration updates, or bug fixes to remote files without transferring the entire file.
+Applies a patch/diff to a file on a remote system via SSH. The patch content is streamed through stdin over the SSH connection to the remote `patch` command.
 
 **Parameters:**
 - `patch` (required): The patch/diff content to apply (unified diff format recommended)
@@ -438,13 +438,13 @@ Applies a patch/diff to a file on a remote system via SSH. The patch content is 
 }
 ```
 
-**Typical Workflow:**
+**Workflow:**
 1. Generate a diff locally: `diff -u original.txt modified.txt > changes.patch`
 2. Read the patch content
 3. Use `Patch_File` to apply it to the remote file
 4. Verify the changes with `SSH` tool (e.g., `cat /path/to/file`)
 
-**Important Notes:**
+**Notes:**
 - The `patch` command must be installed on the remote system
 - Ensure the file to be patched exists on the remote system
 - If the patch fails to apply cleanly, check the output for conflicts
