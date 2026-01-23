@@ -39,7 +39,12 @@ impl RunSSHCommand {
         let _span = tracing::span!(tracing::Level::TRACE, "run_ssh_command", cmd = ?self.cmd, args = ?self.args, timeout_seconds = ?self.timeout_seconds);
         let _enter = _span.enter();
 
-        let remote_user = self.remote_user.clone().unwrap_or(whoami::username());
+        let remote_user = match &self.remote_user {
+            Some(user) => user.clone(),
+            None => whoami::username().map_err(|e| {
+                CallToolError::from_message(format!("Failed to determine current username: {}", e))
+            })?,
+        };
         let private_key = self
             .private_key
             .clone()
@@ -128,7 +133,12 @@ impl RunSSHSudoCommand {
         let _span = tracing::span!(tracing::Level::TRACE, "run_ssh_sudo_command", cmd = ?self.cmd, args = ?self.args, timeout_seconds = ?self.timeout_seconds);
         let _enter = _span.enter();
 
-        let remote_user = self.remote_user.clone().unwrap_or(whoami::username());
+        let remote_user = match &self.remote_user {
+            Some(user) => user.clone(),
+            None => whoami::username().map_err(|e| {
+                CallToolError::from_message(format!("Failed to determine current username: {}", e))
+            })?,
+        };
         let private_key = self
             .private_key
             .clone()

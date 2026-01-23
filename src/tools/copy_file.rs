@@ -40,7 +40,12 @@ impl CopyFile {
             CallToolError::from_message(format!("Failed to expand source path: {}", e))
         })?;
 
-        let remote_user = self.remote_user.clone().unwrap_or(whoami::username());
+        let remote_user = match &self.remote_user {
+            Some(user) => user.clone(),
+            None => whoami::username().map_err(|e| {
+                CallToolError::from_message(format!("Failed to determine current username: {}", e))
+            })?,
+        };
         let private_key = self
             .private_key
             .clone()
