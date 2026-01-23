@@ -3,7 +3,7 @@ use directories::ProjectDirs;
 use mcp_linux_ssh::handler::POSIXSSHHandler;
 use rust_mcp_sdk::{
     McpServer, StdioTransport, TransportOptions,
-    mcp_server::server_runtime,
+    mcp_server::{McpServerOptions, ToMcpServerHandler, server_runtime},
     schema::{
         Implementation, InitializeResult, LATEST_PROTOCOL_VERSION, ServerCapabilities,
         ServerCapabilitiesTools,
@@ -11,6 +11,7 @@ use rust_mcp_sdk::{
 };
 use std::fs::create_dir_all;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -66,6 +67,9 @@ async fn main() -> Result<(), Error> {
             name: env!("CARGO_PKG_NAME").to_string(),
             title: Some("Linux SSH Administration".to_string()),
             version: env!("CARGO_PKG_VERSION").to_string(),
+            description: Some("A MCP server to run operations on a POSIX compatible system (Linux, BSD, macOS) machine over SSH".to_string()),
+            icons: vec![],
+            website_url: Some("https://github.com/subpop/mcp_linux_ssh".to_string()),
         },
         capabilities: ServerCapabilities {
             tools: Some(ServerCapabilitiesTools { list_changed: None }),
@@ -87,9 +91,20 @@ async fn main() -> Result<(), Error> {
 
     // Create custom handler
     let handler = POSIXSSHHandler {};
+    let handler_arc: Arc<dyn rust_mcp_sdk::mcp_server::McpServerHandler> =
+        handler.to_mcp_server_handler();
+
+    // Create server options
+    let server_options = McpServerOptions {
+        server_details,
+        transport,
+        handler: handler_arc,
+        task_store: None,
+        client_task_store: None,
+    };
 
     // Create Server
-    let server = server_runtime::create_server(server_details, transport, handler);
+    let server = server_runtime::create_server(server_options);
 
     // Start!
     server
