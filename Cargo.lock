@@ -404,6 +404,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
+name = "num_threads"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c7398b9c8b70908f6371f47ed36737907c87c52af34c268fed0bf0ceb92ead9"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "object"
 version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -528,9 +537,9 @@ checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
 
 [[package]]
 name = "rust-mcp-macros"
-version = "0.5.2"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b647a85c9da2eaf14e67d39cb067a8157a66bd2c0dc53ef1051a84f45edfae24"
+checksum = "3ca08e51769637b29c365e88f67096acb29310c080775af9dd73a936c2b9ccb7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -541,9 +550,9 @@ dependencies = [
 
 [[package]]
 name = "rust-mcp-schema"
-version = "0.7.5"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba217e6fcb043bba9e194209bff92c35294093187504d1443832ca2051816753"
+checksum = "5ed324cdee4b735926a1eaa7741b63a5d103ee08bbe0d3701398279b0c3bf3ce"
 dependencies = [
  "serde",
  "serde_json",
@@ -551,12 +560,13 @@ dependencies = [
 
 [[package]]
 name = "rust-mcp-sdk"
-version = "0.7.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "961ec01d0bedecf488388e6b1cf04170f9badab4927061c6592ffa385c02c6c9"
+checksum = "f26451e57e1872f1727e29b961cb2a1f7793c567a349aeb52b5b7716475dbf05"
 dependencies = [
  "async-trait",
  "base64",
+ "bytes",
  "futures",
  "rust-mcp-macros",
  "rust-mcp-schema",
@@ -564,6 +574,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.17",
+ "time",
  "tokio",
  "tracing",
  "uuid",
@@ -571,9 +582,9 @@ dependencies = [
 
 [[package]]
 name = "rust-mcp-transport"
-version = "0.6.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35feabc5e4667019dc262178724c94cbced6f43959af15e214b52f79243f55ed"
+checksum = "cc5c1534d052a9ccb136539e4014645d6b3d77d8ab92ef5730cb7448c893d910"
 dependencies = [
  "async-trait",
  "bytes",
@@ -762,7 +773,9 @@ checksum = "91e7d9e3bb61134e77bde20dd4825b97c010155709965fedf0f49bb138e52a9d"
 dependencies = [
  "deranged",
  "itoa",
+ "libc",
  "num-conv",
+ "num_threads",
  "powerfmt",
  "serde",
  "time-core",

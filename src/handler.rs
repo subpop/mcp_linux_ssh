@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use rust_mcp_sdk::schema::schema_utils::CallToolError;
 use rust_mcp_sdk::schema::{
-    CallToolRequest, CallToolResult, ListToolsRequest, ListToolsResult, RpcError,
+    CallToolRequestParams, CallToolResult, ListToolsResult, PaginatedRequestParams, RpcError,
 };
 use rust_mcp_sdk::{McpServer, mcp_server::ServerHandler};
 use std::sync::Arc;
@@ -15,7 +15,7 @@ impl ServerHandler for POSIXSSHHandler {
     /// Handle list tool requests
     async fn handle_list_tools_request(
         &self,
-        _: ListToolsRequest,
+        _: Option<PaginatedRequestParams>,
         _: Arc<dyn McpServer>,
     ) -> std::result::Result<ListToolsResult, RpcError> {
         Ok(ListToolsResult {
@@ -28,12 +28,12 @@ impl ServerHandler for POSIXSSHHandler {
     /// Handle tool call requests
     async fn handle_call_tool_request(
         &self,
-        request: CallToolRequest,
+        params: CallToolRequestParams,
         _: Arc<dyn McpServer>,
     ) -> std::result::Result<CallToolResult, CallToolError> {
-        let params = POSIXSSHTools::try_from(request.params).map_err(CallToolError::new)?;
+        let tool_params = POSIXSSHTools::try_from(params).map_err(CallToolError::new)?;
 
-        match params {
+        match tool_params {
             POSIXSSHTools::RunLocalCommand(tool) => tool.call_tool().await,
             POSIXSSHTools::RunSSHCommand(tool) => tool.call_tool().await,
             POSIXSSHTools::RunSSHSudoCommand(tool) => tool.call_tool().await,

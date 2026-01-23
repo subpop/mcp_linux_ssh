@@ -28,10 +28,9 @@ tracing-subscriber = { version = "0.3.20", features = [
 ] }
 whoami = "1.5.2"
 directories = "6.0.0"
-rust-mcp-sdk = { version = "0.7.0", default-features = false, features = [
+rust-mcp-sdk = { version = "0.8.2", default-features = false, features = [
     "server",
     "macros",
     "stdio",
-    "2025_06_18",
 ] }
 async-trait = "0.1.89"
