@@ -34,3 +34,5 @@ rust-mcp-sdk = { version = "0.8.2", default-features = false, features = [
     "stdio",
 ] }
 async-trait = "0.1.89"
+siumai = { version = "0.10", features = ["openai", "anthropic", "ollama", "google"] }
+better-config = { version = "0.2.4", features = ["env"], default-features = false }

@@ -519,6 +519,116 @@ All commands support configurable timeouts to prevent indefinite blocking.
 - **Monitoring**: Consider logging SSH sessions for audit purposes
 - **Network Security**: Ensure SSH is properly configured (disable password auth, use non-standard ports, etc.)
 
+## LLM Judge (Optional)
+
+The MCP server supports an optional LLM-based judge that evaluates tool calls before execution. This offers an additional layer of security by allowing another LLM to review commands and reject potentially dangerous operations.
+
+### Configuration
+
+The judge is configured entirely through environment variables. To enable the judge, set the required environment variables:
+
+```bash
+# Required: LLM provider service
+export MCP_LINUX_SSH_JUDGE_SERVICE="openai"
+
+# Required: Model name
+export MCP_LINUX_SSH_JUDGE_MODEL="gpt-4o-mini"
+
+# Required for OpenAI, Anthropic, Gemini: API key
+export MCP_LINUX_SSH_JUDGE_API_KEY="sk-..."
+
+# Optional: Custom base URL
+export MCP_LINUX_SSH_JUDGE_BASE_URL="https://api.openai.com/v1"
+
+# Optional: Timeout in seconds (default: 10)
+export MCP_LINUX_SSH_JUDGE_TIMEOUT_SECONDS="10"
+
+# Optional: Fail mode - "open" or "closed" (default: "open")
+export MCP_LINUX_SSH_JUDGE_FAIL_MODE="open"
+
+# Optional: Comma-separated list of tools to judge (default: all tools)
+export MCP_LINUX_SSH_JUDGE_TOOLS="run_ssh_command,run_ssh_sudo_command,copy_file,patch_file,run_local_command"
+```
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MCP_LINUX_SSH_JUDGE_SERVICE` | Yes | - | LLM provider: `"openai"`, `"anthropic"`, `"gemini"`, or `"ollama"` |
+| `MCP_LINUX_SSH_JUDGE_MODEL` | Yes | - | Model name (e.g., `"gpt-4o-mini"`, `"claude-3-5-sonnet-20241022"`) |
+| `MCP_LINUX_SSH_JUDGE_API_KEY` | Yes* | - | API key for the provider (*not required for Ollama) |
+| `MCP_LINUX_SSH_JUDGE_BASE_URL` | No | Provider default | Custom base URL for the API |
+| `MCP_LINUX_SSH_JUDGE_TIMEOUT_SECONDS` | No | `10` | Timeout for LLM judge calls |
+| `MCP_LINUX_SSH_JUDGE_FAIL_MODE` | No | `"open"` | Behavior when judge unavailable: `"open"` (allow) or `"closed"` (reject) |
+| `MCP_LINUX_SSH_JUDGE_TOOLS` | No | All tools | Comma-separated list of tool names to judge |
+
+### Supported Providers
+
+- **OpenAI**: Set `MCP_LINUX_SSH_JUDGE_SERVICE="openai"` and provide `MCP_LINUX_SSH_JUDGE_API_KEY` and `MCP_LINUX_SSH_JUDGE_MODEL`
+- **Anthropic**: Set `MCP_LINUX_SSH_JUDGE_SERVICE="anthropic"` and provide `MCP_LINUX_SSH_JUDGE_API_KEY` and `MCP_LINUX_SSH_JUDGE_MODEL`
+- **Gemini**: Set `MCP_LINUX_SSH_JUDGE_SERVICE="gemini"` and provide `MCP_LINUX_SSH_JUDGE_API_KEY` and `MCP_LINUX_SSH_JUDGE_MODEL`
+- **Ollama**: Set `MCP_LINUX_SSH_JUDGE_SERVICE="ollama"` and provide `MCP_LINUX_SSH_JUDGE_MODEL` (no API key needed)
+
+### Fail Mode
+
+The `MCP_LINUX_SSH_JUDGE_FAIL_MODE` setting controls behavior when the judge is unavailable:
+
+- **`"open"`** (default): If the judge fails or times out, allow the tool call to proceed
+- **`"closed"`**: If the judge fails or times out, reject the tool call
+
+### Tool Selection
+
+Only tools listed in `MCP_LINUX_SSH_JUDGE_TOOLS` will be evaluated. Available tool names:
+- `"run_local_command"` - Local command execution
+- `"run_ssh_command"` - Remote SSH command execution
+- `"run_ssh_sudo_command"` - Remote SSH command with sudo
+- `"copy_file"` - File transfer with rsync
+- `"patch_file"` - Apply patches to remote files
+
+If `MCP_LINUX_SSH_JUDGE_TOOLS` is not set, all tools are judged by default.
+
+### Judge Response Format
+
+The judge must return JSON in this format:
+
+```json
+{
+  "allowed": false,
+  "reason": "Command attempts to delete root filesystem"
+}
+```
+
+If `allowed` is `false`, the tool call is rejected with the `reason` as the error message.
+
+### Example Usage
+
+**OpenAI Example:**
+```bash
+export MCP_LINUX_SSH_JUDGE_SERVICE="openai"
+export MCP_LINUX_SSH_JUDGE_MODEL="gpt-4o-mini"
+export MCP_LINUX_SSH_JUDGE_API_KEY="sk-..."
+export MCP_LINUX_SSH_JUDGE_FAIL_MODE="open"
+```
+
+**Anthropic Example:**
+```bash
+export MCP_LINUX_SSH_JUDGE_SERVICE="anthropic"
+export MCP_LINUX_SSH_JUDGE_MODEL="claude-3-5-sonnet-20241022"
+export MCP_LINUX_SSH_JUDGE_API_KEY="sk-ant-..."
+export MCP_LINUX_SSH_JUDGE_TIMEOUT_SECONDS="15"
+```
+
+**Ollama Example (Local):**
+```bash
+export MCP_LINUX_SSH_JUDGE_SERVICE="ollama"
+export MCP_LINUX_SSH_JUDGE_MODEL="llama3.2"
+export MCP_LINUX_SSH_JUDGE_BASE_URL="http://localhost:11434"
+```
+
+### Disabling the Judge
+
+If `MCP_LINUX_SSH_JUDGE_SERVICE` is not set, the judge is disabled and all tool calls proceed normally.
+
 ## Troubleshooting
 
 ### Connection Issues
