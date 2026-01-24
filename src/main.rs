@@ -89,8 +89,8 @@ async fn main() -> Result<(), Error> {
     let transport = StdioTransport::new(TransportOptions::default())
         .map_err(|e| Error::msg(format!("{}", e)))?;
 
-    // Create custom handler
-    let handler = POSIXSSHHandler {};
+    // Create custom handler with judge initialization
+    let handler = POSIXSSHHandler::new().await;
     let handler_arc: Arc<dyn rust_mcp_sdk::mcp_server::McpServerHandler> =
         handler.to_mcp_server_handler();
 
