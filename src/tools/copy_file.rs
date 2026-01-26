@@ -3,7 +3,6 @@ use rust_mcp_sdk::{
     macros::{JsonSchema, mcp_tool},
     schema::{CallToolResult, TextContent, schema_utils::CallToolError},
 };
-use std::ops::Deref;
 use tokio::{
     process::Command,
     time::{Duration, timeout},
@@ -20,12 +19,8 @@ pub struct CopyFile {
     pub source: String,
     /// The destination file path on the remote machine.
     pub destination: String,
-    /// The user to run the command as. Defaults to the current username.
-    pub remote_user: Option<String>,
-    /// The host to copy the file to.
+    /// The host to copy the file to. Can be a host alias from ~/.ssh/config, a hostname, or an IP address.
     pub remote_host: String,
-    /// The private key to use for authentication. Defaults to ~/.ssh/id_ed25519.
-    pub private_key: Option<String>,
     /// Timeout in seconds for the command execution. Defaults to 30 seconds. Set to 0 to disable timeout.
     pub timeout_seconds: Option<u64>,
 }
@@ -40,37 +35,31 @@ impl CopyFile {
             CallToolError::from_message(format!("Failed to expand source path: {}", e))
         })?;
 
-        let remote_user = match &self.remote_user {
-            Some(user) => user.clone(),
-            None => whoami::username().map_err(|e| {
-                CallToolError::from_message(format!("Failed to determine current username: {}", e))
-            })?,
-        };
-        let private_key = self
-            .private_key
-            .clone()
-            .unwrap_or("~/.ssh/id_ed25519".to_string());
         let timeout_seconds = self.timeout_seconds.unwrap_or(30);
 
-        // Expand the private key path
-        let expanded_key = expand_tilde(&private_key).map_err(|e| {
-            CallToolError::from_message(format!("Failed to expand private key path: {}", e))
-        })?;
-        let private_key_path = expanded_key.deref().as_os_str().to_str().ok_or_else(|| {
-            CallToolError::from_message(format!(
-                "Failed to convert private key to string: {}",
-                private_key
-            ))
+        // Get multiplexing options for SSH
+        let multiplexing_opts = super::get_multiplexing_options().map_err(|e| {
+            CallToolError::from_message(format!("Failed to get multiplexing options: {}", e))
         })?;
 
-        let ssh_command = format!("ssh -i {}", private_key_path);
-        let remote_target = format!("{}@{}:{}", remote_user, self.remote_host, self.destination);
+        // Build SSH command with multiplexing options
+        let mut ssh_args = vec!["ssh".to_string()];
+        for opt in &multiplexing_opts {
+            ssh_args.push("-o".to_string());
+            ssh_args.push(opt.clone());
+        }
+        // Always append StrictHostKeyChecking=yes to ensure SSH fails instead of prompting interactively
+        ssh_args.push("-o".to_string());
+        ssh_args.push("StrictHostKeyChecking=yes".to_string());
+        let ssh_command = ssh_args.join(" ");
+
+        let remote_target = format!("{}:{}", self.remote_host, self.destination);
 
         // Build the rsync command
         // -a: archive mode (preserves permissions, timestamps, etc.)
         // -v: verbose
         // -b: create backups of existing files
-        // -e: specify ssh command with identity file
+        // -e: specify ssh command with multiplexing options
         let command_future = Command::new("rsync")
             .arg("-avb")
             .arg("-e")
@@ -130,9 +119,7 @@ mod tests {
         let copy = CopyFile {
             source: "/tmp/test.txt".to_string(),
             destination: "/home/user/test.txt".to_string(),
-            remote_user: Some("testuser".to_string()),
             remote_host: "localhost".to_string(),
-            private_key: Some("~/.ssh/test_key".to_string()),
             timeout_seconds: Some(60),
         };
 
@@ -146,14 +133,10 @@ mod tests {
         let copy = CopyFile {
             source: "file.txt".to_string(),
             destination: "/remote/path/file.txt".to_string(),
-            remote_user: None,
             remote_host: "example.com".to_string(),
-            private_key: None,
             timeout_seconds: None,
         };
 
-        assert!(copy.remote_user.is_none());
-        assert!(copy.private_key.is_none());
         assert!(copy.timeout_seconds.is_none());
     }
 }
