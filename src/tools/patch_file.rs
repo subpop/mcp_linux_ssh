@@ -1,9 +1,7 @@
-use expand_tilde::expand_tilde;
 use rust_mcp_sdk::{
     macros::{JsonSchema, mcp_tool},
     schema::{CallToolResult, TextContent, schema_utils::CallToolError},
 };
-use std::ops::Deref;
 use tokio::{
     io::AsyncWriteExt,
     process::Command,
@@ -23,12 +21,8 @@ pub struct PatchFile {
     pub patch: String,
     /// The path to the file on the remote machine to patch.
     pub remote_file: String,
-    /// The user to run the command as. Defaults to the current username.
-    pub remote_user: Option<String>,
-    /// The host to run the command on.
+    /// The host to run the command on. Can be a host alias from ~/.ssh/config, a hostname, or an IP address.
     pub remote_host: String,
-    /// The private key to use for authentication. Defaults to ~/.ssh/id_ed25519.
-    pub private_key: Option<String>,
     /// Timeout in seconds for the command execution. Defaults to 30 seconds. Set to 0 to disable timeout.
     pub timeout_seconds: Option<u64>,
     /// Additional options to pass to the ssh command. Each option should be a key-value pair separated by an equal sign (=). The options are passed to the ssh command using the -o flag.
@@ -42,46 +36,38 @@ impl PatchFile {
             tracing::span!(tracing::Level::TRACE, "patch_file", remote_file = ?self.remote_file);
         let _enter = _span.enter();
 
-        let remote_user = match &self.remote_user {
-            Some(user) => user.clone(),
-            None => whoami::username().map_err(|e| {
-                CallToolError::from_message(format!("Failed to determine current username: {}", e))
-            })?,
-        };
-        let private_key = self
-            .private_key
-            .clone()
-            .unwrap_or("~/.ssh/id_ed25519".to_string());
         let timeout_seconds = self.timeout_seconds.unwrap_or(30);
         let options_vec: Option<Vec<&str>> = self
             .options
             .as_ref()
             .map(|v| v.iter().map(String::as_str).collect());
 
-        // Expand the private key path
-        let expanded_key = expand_tilde(&private_key).map_err(|e| {
-            CallToolError::from_message(format!("Failed to expand private key path: {}", e))
-        })?;
-        let private_key_path = expanded_key.deref().as_os_str().to_str().ok_or_else(|| {
-            CallToolError::from_message(format!(
-                "Failed to convert private key to string: {}",
-                private_key
-            ))
+        // Get multiplexing options
+        let multiplexing_opts = super::get_multiplexing_options().map_err(|e| {
+            CallToolError::from_message(format!("Failed to get multiplexing options: {}", e))
         })?;
 
         // Build SSH command that will run patch on the remote side
         // The patch command reads from stdin and applies to the specified file
         let mut cmd = Command::new("ssh");
-        cmd.arg(&self.remote_host)
-            .args(["-l", &remote_user])
-            .args(["-i", private_key_path])
-            .args(
-                options_vec
-                    .unwrap_or_default()
-                    .iter()
-                    .flat_map(|opt| ["-o", opt]),
-            )
-            .arg("patch")
+        cmd.arg(&self.remote_host);
+
+        // Always append StrictHostKeyChecking=yes to ensure SSH fails instead of prompting interactively
+        cmd.args(["-o", "StrictHostKeyChecking=yes"]);
+
+        // Add multiplexing options first to ensure they take precedence
+        for opt in &multiplexing_opts {
+            cmd.args(["-o", opt]);
+        }
+
+        // Add user-provided options last
+        if let Some(opts) = options_vec {
+            for opt in opts {
+                cmd.args(["-o", opt]);
+            }
+        }
+
+        cmd.arg("patch")
             .arg(&self.remote_file)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -155,9 +141,7 @@ mod tests {
         let patch_cmd = PatchFile {
             patch: "--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new".to_string(),
             remote_file: "/home/user/file.txt".to_string(),
-            remote_user: Some("testuser".to_string()),
             remote_host: "localhost".to_string(),
-            private_key: Some("~/.ssh/test_key".to_string()),
             timeout_seconds: Some(60),
             options: Some(vec!["StrictHostKeyChecking=no".to_string()]),
         };
@@ -173,15 +157,11 @@ mod tests {
         let patch_cmd = PatchFile {
             patch: "diff content".to_string(),
             remote_file: "/path/to/file".to_string(),
-            remote_user: None,
             remote_host: "example.com".to_string(),
-            private_key: None,
             timeout_seconds: None,
             options: None,
         };
 
-        assert!(patch_cmd.remote_user.is_none());
-        assert!(patch_cmd.private_key.is_none());
         assert!(patch_cmd.timeout_seconds.is_none());
         assert!(patch_cmd.options.is_none());
     }
