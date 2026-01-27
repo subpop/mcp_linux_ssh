@@ -1,4 +1,3 @@
-use anyhow::Error;
 use rust_mcp_sdk::{
     macros::{JsonSchema, mcp_tool},
     schema::{CallToolResult, TextContent, schema_utils::CallToolError},
@@ -46,7 +45,7 @@ impl RunSSHCommand {
             ));
         }
 
-        match exec_ssh(
+        exec_ssh(
             &self.remote_host,
             &self.cmd,
             &self
@@ -58,28 +57,6 @@ impl RunSSHCommand {
             options_vec.as_deref(),
         )
         .await
-        {
-            Ok(output) => {
-                // The command executed successfully. This doesn't mean it
-                // succeeded, so output is returned as a successful tool call.
-                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-                let status_code = output.status.code();
-
-                Ok(
-                    CallToolResult::text_content(vec![TextContent::from(stdout.clone())])
-                        .with_structured_content(super::map_from_output(
-                            stdout,
-                            stderr,
-                            status_code,
-                        )),
-                )
-            }
-            Err(err) => Err(CallToolError::from_message(format!(
-                "Failed to execute remote SSH command: {}",
-                err
-            ))),
-        }
     }
 }
 
@@ -116,7 +93,7 @@ impl RunSSHSudoCommand {
             .as_ref()
             .map(|v| v.iter().map(String::as_str).collect());
 
-        match exec_ssh(
+        exec_ssh(
             &self.remote_host,
             "sudo",
             std::iter::once(self.cmd.as_str())
@@ -127,28 +104,6 @@ impl RunSSHSudoCommand {
             options_vec.as_deref(),
         )
         .await
-        {
-            Ok(output) => {
-                // The command executed successfully. This doesn't mean it
-                // succeeded, so output is returned as a successful tool call.
-                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-                let status_code = output.status.code();
-
-                Ok(
-                    CallToolResult::text_content(vec![TextContent::from(stdout.clone())])
-                        .with_structured_content(super::map_from_output(
-                            stdout,
-                            stderr,
-                            status_code,
-                        )),
-                )
-            }
-            Err(err) => Err(CallToolError::from_message(format!(
-                "Failed to execute remote SSH command with sudo: {}",
-                err
-            ))),
-        }
     }
 }
 
@@ -161,13 +116,14 @@ async fn exec_ssh(
     args: &[&str],
     timeout_seconds: u64,
     options: Option<&[&str]>,
-) -> Result<std::process::Output, Error> {
+) -> Result<CallToolResult, CallToolError> {
     let _span = tracing::span!(tracing::Level::TRACE, "exec_ssh", host = %host, command = %command, args = ?args, timeout_seconds = %timeout_seconds);
     let _enter = _span.enter();
 
     // Get multiplexing options
-    let multiplexing_opts = super::get_multiplexing_options()
-        .map_err(|e| Error::msg(format!("Failed to get multiplexing options: {}", e)))?;
+    let multiplexing_opts = super::get_multiplexing_options().map_err(|e| {
+        CallToolError::from_message(format!("Failed to get multiplexing options: {}", e))
+    })?;
 
     // Build SSH command with multiplexing enabled
     let mut cmd = Command::new("ssh");
@@ -202,7 +158,7 @@ async fn exec_ssh(
         match timeout(timeout_duration, command_future).await {
             Ok(result) => result,
             Err(_) => {
-                return Err(Error::msg(format!(
+                return Err(CallToolError::from_message(format!(
                     "SSH command timed out after {} seconds",
                     timeout_seconds
                 )));
@@ -210,7 +166,38 @@ async fn exec_ssh(
         }
     };
 
-    result.map_err(|e| Error::msg(format!("Failed to run SSH command: {}", e)))
+    match result {
+        Ok(output) => {
+            // The command executed successfully. This doesn't mean it
+            // succeeded, so output is returned as a tool call result.
+            // If the status code is 255 or None, an error is returned.
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let status_code = output.status.code();
+
+            match status_code {
+                Some(255) => Err(CallToolError::from_message(format!(
+                    "SSH command failed unexpectedly: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ))),
+                None => Err(CallToolError::from_message(
+                    "SSH command unexpectedly terminated",
+                )),
+                _ => Ok(
+                    CallToolResult::text_content(vec![TextContent::from(stdout.clone())])
+                        .with_structured_content(super::map_from_output(
+                            stdout,
+                            stderr,
+                            status_code,
+                        )),
+                ),
+            }
+        }
+        Err(err) => Err(CallToolError::from_message(format!(
+            "Failed to execute remote SSH command: {}",
+            err
+        ))),
+    }
 }
 
 #[cfg(test)]
