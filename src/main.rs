@@ -44,7 +44,7 @@ async fn main() -> Result<(), Error> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::registry()
-        .with(EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()))
+        .with(EnvFilter::from_default_env())
         .with(
             fmt::layer()
                 .with_writer(std::io::stderr)
