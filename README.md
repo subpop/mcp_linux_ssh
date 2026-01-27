@@ -32,7 +32,7 @@ This MCP server enables LLMs to perform system administration tasks across remot
 - **Configurable timeouts**: Per-command timeout settings to prevent blocking
 - **Public key discovery**: List available public keys from `~/.ssh` directory
 - **Authentication**: Uses existing SSH configuration and keys
-- **User specification**: Specify which user to run commands as
+- **SSH configuration**: Relies on existing SSH config file (`~/.ssh/config`) for user and key specification
 - **Security**: Leverages SSH's built-in security features
 - **System administrator persona**: Built-in instructions for system administration tasks
 - **Error handling**: Error messages for connection and execution issues
@@ -153,13 +153,24 @@ ssh-copy-id user@remote-host
 
 ### 2. SSH Config File
 
-Create or edit `~/.ssh/config` to simplify connections:
+Create or edit `~/.ssh/config` to configure connections. This is the recommended way to specify users, keys, and other SSH settings:
+
 ```
 Host myserver
     HostName 192.168.1.100
     User myuser
     Port 22
     IdentityFile ~/.ssh/id_ed25519
+
+Host production-server
+    HostName prod.example.com
+    User deploy
+    IdentityFile ~/.ssh/production_key
+
+Host staging-server
+    HostName staging.example.com
+    User deploy
+    IdentityFile ~/.ssh/staging_key
 ```
 
 ### 3. Test SSH Connection
@@ -168,48 +179,6 @@ Verify you can connect without a password:
 ```bash
 ssh myserver whoami
 ```
-
-### 4. Custom Identity Files
-
-The MCP server supports specifying custom private key files through the `private_key` parameter. This is useful when:
-
-- You have multiple SSH keys for different servers or environments
-- You need to use a specific key that's not the default (`~/.ssh/id_ed25519`)
-- You're managing multiple remote systems with different authentication requirements
-
-**Behavior:**
-- **Default**: Uses `~/.ssh/id_ed25519` if no `private_key` is specified
-- **Tilde expansion**: Supports `~` for home directory (e.g., `~/.ssh/my_key`)
-- **Absolute paths**: Supports full paths (e.g., `/home/user/.ssh/production_key`)
-- **Relative paths**: Supports relative paths from current working directory
-
-**Examples:**
-```json
-// Using default key (~/.ssh/id_ed25519)
-{
-  "command": "ls",
-  "remote_host": "server1"
-}
-
-// Using custom key with tilde expansion
-{
-  "command": "ls",
-  "remote_host": "server2",
-  "private_key": "~/.ssh/production_key"
-}
-
-// Using absolute path
-{
-  "command": "ls",
-  "remote_host": "server3",
-  "private_key": "/opt/keys/deployment_key"
-}
-```
-
-**Security:**
-- Ensure private key files have correct permissions (600)
-- Keep private keys secure and never share them
-- Use different keys for different environments (dev/staging/production)
 
 ## Usage
 
@@ -249,10 +218,9 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 **Parameters:**
 - `command` (required): The command to execute
 - `args` (optional): Array of arguments to pass to the command
-- `remote_host` (required): The hostname or IP address of the remote system
-- `remote_user` (optional): The username to connect as (defaults to current user)
-- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `remote_host` (required): The hostname, IP address, or SSH config alias of the remote system
 - `timeout_seconds` (optional): Timeout in seconds for command execution (default: 30, set to 0 to disable)
+- `options` (optional): Additional SSH options to pass via `-o` flag (array of "key=value" strings)
 
 **Examples:**
 
@@ -260,8 +228,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 {
   "command": "ls",
   "args": ["-la", "/home"],
-  "remote_host": "myserver",
-  "remote_user": "admin"
+  "remote_host": "myserver"
 }
 ```
 
@@ -273,18 +240,6 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 }
 ```
 
-**Using a custom private key:**
-
-```json
-{
-  "command": "ps",
-  "args": ["aux"],
-  "remote_host": "production-server",
-  "remote_user": "deploy",
-  "private_key": "~/.ssh/production_key"
-}
-```
-
 #### `SSH Sudo` (Remote Command Execution with Sudo)
 
 Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) system via SSH. This tool **permits** commands to be run with sudo for administrative tasks.
@@ -292,10 +247,9 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 **Parameters:**
 - `command` (required): The command to execute (can include sudo)
 - `args` (optional): Array of arguments to pass to the command
-- `remote_host` (required): The hostname or IP address of the remote system
-- `remote_user` (optional): The username to connect as (defaults to current user)
-- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `remote_host` (required): The hostname, IP address, or SSH config alias of the remote system
 - `timeout_seconds` (optional): Timeout in seconds for command execution (default: 30, set to 0 to disable)
+- `options` (optional): Additional SSH options to pass via `-o` flag (array of "key=value" strings)
 
 **Examples:**
 
@@ -303,8 +257,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 {
   "command": "sudo",
   "args": ["systemctl", "restart", "nginx"],
-  "remote_host": "webserver.example.com",
-  "remote_user": "admin"
+  "remote_host": "webserver.example.com"
 }
 ```
 
@@ -312,20 +265,7 @@ Executes a command on a remote POSIX compatible system (Linux, BSD, macOS) syste
 {
   "command": "sudo",
   "args": ["tail", "-f", "/var/log/syslog"],
-  "remote_host": "logserver",
-  "remote_user": "sysadmin"
-}
-```
-
-**Using a custom private key with sudo:**
-
-```json
-{
-  "command": "sudo",
-  "args": ["systemctl", "restart", "apache2"],
-  "remote_host": "web01.example.com",
-  "remote_user": "admin",
-  "private_key": "/home/user/.ssh/admin_key"
+  "remote_host": "logserver"
 }
 ```
 
@@ -336,9 +276,7 @@ Copies a file from the local machine to a remote system using rsync. Preserves f
 **Parameters:**
 - `source` (required): The path to the source file on the local machine
 - `destination` (required): The destination path on the remote machine
-- `remote_host` (required): The hostname or IP address of the remote system
-- `remote_user` (optional): The username to connect as (defaults to current user)
-- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `remote_host` (required): The hostname, IP address, or SSH config alias of the remote system
 - `timeout_seconds` (optional): Timeout in seconds for the copy operation (default: 30, set to 0 to disable)
 
 **Features:**
@@ -352,8 +290,7 @@ Copies a file from the local machine to a remote system using rsync. Preserves f
 {
   "source": "/home/user/config.yaml",
   "destination": "/etc/myapp/config.yaml",
-  "remote_host": "webserver.example.com",
-  "remote_user": "deploy"
+  "remote_host": "webserver.example.com"
 }
 ```
 
@@ -362,20 +299,7 @@ Copies a file from the local machine to a remote system using rsync. Preserves f
   "source": "./build/app.jar",
   "destination": "/opt/myapp/app.jar",
   "remote_host": "production-server",
-  "remote_user": "deploy",
-  "private_key": "~/.ssh/deployment_key",
   "timeout_seconds": 60
-}
-```
-
-**Using with absolute paths:**
-
-```json
-{
-  "source": "/var/www/html/index.html",
-  "destination": "/var/www/html/index.html",
-  "remote_host": "backup-server",
-  "private_key": "/opt/keys/backup_key"
 }
 ```
 
@@ -392,9 +316,7 @@ Applies a patch/diff to a file on a remote system via SSH. The patch content is 
 **Parameters:**
 - `patch` (required): The patch/diff content to apply (unified diff format recommended)
 - `remote_file` (required): The path to the file on the remote machine to patch
-- `remote_host` (required): The hostname or IP address of the remote system
-- `remote_user` (optional): The username to connect as (defaults to current user)
-- `private_key` (optional): Path to the private key file for authentication (defaults to `~/.ssh/id_ed25519`)
+- `remote_host` (required): The hostname, IP address, or SSH config alias of the remote system
 - `timeout_seconds` (optional): Timeout in seconds for the patch operation (default: 30, set to 0 to disable)
 - `options` (optional): Additional SSH options to pass via `-o` flag (array of "key=value" strings)
 
@@ -411,8 +333,7 @@ Applies a patch/diff to a file on a remote system via SSH. The patch content is 
 {
   "patch": "--- config.yaml\n+++ config.yaml\n@@ -1,3 +1,3 @@\n-port: 8080\n+port: 9090\n",
   "remote_file": "/etc/myapp/config.yaml",
-  "remote_host": "webserver.example.com",
-  "remote_user": "deploy"
+  "remote_host": "webserver.example.com"
 }
 ```
 
@@ -421,9 +342,7 @@ Applies a patch/diff to a file on a remote system via SSH. The patch content is 
 {
   "patch": "diff --git a/app.py b/app.py\nindex 1234567..abcdefg 100644\n--- a/app.py\n+++ b/app.py\n@@ -10,7 +10,7 @@ def main():\n-    return 'Hello'\n+    return 'Hello, World!'\n",
   "remote_file": "/opt/myapp/app.py",
-  "remote_host": "production-server",
-  "remote_user": "appuser",
-  "private_key": "~/.ssh/deployment_key"
+  "remote_host": "production-server"
 }
 ```
 
@@ -433,7 +352,6 @@ Applies a patch/diff to a file on a remote system via SSH. The patch content is 
   "patch": "--- nginx.conf\n+++ nginx.conf\n@@ -5,1 +5,1 @@\n-worker_processes 2;\n+worker_processes 4;\n",
   "remote_file": "/etc/nginx/nginx.conf",
   "remote_host": "192.168.1.100",
-  "remote_user": "root",
   "options": ["StrictHostKeyChecking=no", "UserKnownHostsFile=/dev/null"]
 }
 ```
@@ -455,26 +373,6 @@ Applies a patch/diff to a file on a remote system via SSH. The patch content is 
 - **Unified diff** (recommended): `diff -u old.txt new.txt`
 - **Git diff**: `git diff file.txt`
 - **Context diff**: `diff -c old.txt new.txt`
-
-### Resources
-
-This server exposes local system information as resources that can be read by the AI assistant.
-
-#### `public_keys`
-
-Lists all available public keys (`.pub` files) found in the user's `~/.ssh` directory.
-
-**URI:**
-`file:///public_keys`
-
-**Returns:**
-A comma-separated string of public key filenames.
-
-**Example Usage:**
-An AI assistant might read this resource to see which SSH keys are available for use in the `SSH` or `SSH Sudo` tools, especially when deciding which `private_key` to specify.
-
-**Example Return Value:**
-`id_rsa.pub,id_ed25519.pub,work_key.pub`
 
 ## Timeout Configuration
 
@@ -510,14 +408,6 @@ All commands support configurable timeouts to prevent indefinite blocking.
   "timeout_seconds": 0
 }
 ```
-
-## Security Considerations
-
-- **SSH Key Security**: Use strong SSH keys and keep private keys secure
-- **Limited Scope**: Only grant access to systems you trust the AI to manage
-- **User Permissions**: The remote user should have appropriate but limited permissions
-- **Monitoring**: Consider logging SSH sessions for audit purposes
-- **Network Security**: Ensure SSH is properly configured (disable password auth, use non-standard ports, etc.)
 
 ## LLM Judge (Optional)
 
@@ -646,9 +536,16 @@ If `MCP_LINUX_SSH_JUDGE_SERVICE` is not set, the judge is disabled and all tool 
 - **Authentication**: Verify SSH key permissions (600 for private key, 644 for public key)
 - **Path Issues**: Use absolute paths for commands when possible
 
-### Private Key Issues
+### SSH Configuration Issues
 
-1. **Wrong Key Path**: Ensure the `private_key` parameter points to the correct file:
+1. **User Not Specified**: Ensure your `~/.ssh/config` has the `User` directive for each host:
+   ```
+   Host myserver
+       User myuser
+       IdentityFile ~/.ssh/id_ed25519
+   ```
+
+2. **Wrong Key Path**: Verify the `IdentityFile` in your SSH config points to the correct key:
    ```bash
    # Check if key exists
    ls -la ~/.ssh/id_ed25519
@@ -657,22 +554,26 @@ If `MCP_LINUX_SSH_JUDGE_SERVICE` is not set, the judge is disabled and all tool 
    chmod 600 ~/.ssh/id_ed25519
    ```
 
-2. **Key Not Added to Agent**: If using SSH agent, ensure your key is loaded:
+3. **Key Not Added to Agent**: If using SSH agent, ensure your key is loaded:
    ```bash
    ssh-add ~/.ssh/id_ed25519
    ssh-add -l  # List loaded keys
    ```
 
-3. **Multiple Keys**: When using multiple keys, specify the correct one:
-   ```json
-   {
-     "command": "whoami",
-     "remote_host": "server",
-     "private_key": "~/.ssh/specific_key"
-   }
+4. **Multiple Keys**: Configure different keys for different hosts in `~/.ssh/config`:
+   ```
+   Host production
+       HostName prod.example.com
+       User deploy
+       IdentityFile ~/.ssh/production_key
+
+   Host staging
+       HostName staging.example.com
+       User deploy
+       IdentityFile ~/.ssh/staging_key
    ```
 
-4. **Key Format Issues**: Ensure your private key is in the correct format (OpenSSH format preferred)
+5. **Key Format Issues**: Ensure your private key is in the correct format (OpenSSH format preferred)
 
 ## Development
 
