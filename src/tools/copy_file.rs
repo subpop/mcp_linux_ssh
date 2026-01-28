@@ -26,11 +26,8 @@ pub struct CopyFile {
 }
 
 impl CopyFile {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument]
     pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        let _span = tracing::span!(tracing::Level::TRACE, "copy_file", source = ?self.source, destination = ?self.destination);
-        let _enter = _span.enter();
-
         let source = expand_tilde(&self.source).map_err(|e| {
             CallToolError::from_message(format!("Failed to expand source path: {}", e))
         })?;

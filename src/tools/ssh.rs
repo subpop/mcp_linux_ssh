@@ -27,11 +27,8 @@ pub struct RunSSHCommand {
 }
 
 impl RunSSHCommand {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument]
     pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        let _span = tracing::span!(tracing::Level::TRACE, "run_ssh_command", cmd = ?self.cmd, args = ?self.args, timeout_seconds = ?self.timeout_seconds);
-        let _enter = _span.enter();
-
         let timeout_seconds = self.timeout_seconds.unwrap_or(30);
         let options_vec: Option<Vec<&str>> = self
             .options
@@ -82,11 +79,9 @@ pub struct RunSSHSudoCommand {
 }
 
 impl RunSSHSudoCommand {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument]
     pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        let _span = tracing::span!(tracing::Level::TRACE, "run_ssh_sudo_command", cmd = ?self.cmd, args = ?self.args, timeout_seconds = ?self.timeout_seconds);
-        let _enter = _span.enter();
-
+        tracing::trace!("Calling run_ssh_sudo_command");
         let timeout_seconds = self.timeout_seconds.unwrap_or(30);
         let options_vec: Option<Vec<&str>> = self
             .options
@@ -117,9 +112,7 @@ async fn exec_ssh(
     timeout_seconds: u64,
     options: Option<&[&str]>,
 ) -> Result<CallToolResult, CallToolError> {
-    let _span = tracing::span!(tracing::Level::TRACE, "exec_ssh", host = %host, command = %command, args = ?args, timeout_seconds = %timeout_seconds);
-    let _enter = _span.enter();
-
+    tracing::trace!("Executing SSH command");
     // Get multiplexing options
     let multiplexing_opts = super::get_multiplexing_options().map_err(|e| {
         CallToolError::from_message(format!("Failed to get multiplexing options: {}", e))

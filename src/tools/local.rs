@@ -23,11 +23,8 @@ pub struct RunLocalCommand {
 }
 
 impl RunLocalCommand {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument]
     pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        let _span = tracing::span!(tracing::Level::TRACE, "run_local_command", cmd = ?self.cmd, args = ?self.args, timeout_seconds = ?self.timeout_seconds);
-        let _enter = _span.enter();
-
         let command_future = Command::new(&self.cmd).args(&self.args).output();
 
         let result = if self.timeout_seconds == Some(0) {
