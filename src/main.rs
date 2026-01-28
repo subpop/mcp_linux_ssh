@@ -12,7 +12,9 @@ use rust_mcp_sdk::{
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{
+    EnvFilter, fmt, fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -44,18 +46,19 @@ async fn main() -> Result<(), Error> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::registry()
-        .with(EnvFilter::from_default_env())
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .with(
             fmt::layer()
                 .with_writer(std::io::stderr)
-                .json()
-                .with_ansi(false),
+                .with_ansi(false)
+                .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE),
         )
         .with(
             fmt::layer()
                 .with_writer(non_blocking)
                 .json()
-                .with_ansi(false),
+                .with_ansi(false)
+                .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE),
         )
         .init();
 

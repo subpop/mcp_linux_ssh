@@ -30,12 +30,8 @@ pub struct PatchFile {
 }
 
 impl PatchFile {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument]
     pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        let _span =
-            tracing::span!(tracing::Level::TRACE, "patch_file", remote_file = ?self.remote_file);
-        let _enter = _span.enter();
-
         let timeout_seconds = self.timeout_seconds.unwrap_or(30);
         let options_vec: Option<Vec<&str>> = self
             .options
