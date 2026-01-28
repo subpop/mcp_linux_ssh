@@ -3,6 +3,9 @@ name: Release
 on:
   release:
     types: [created]
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,12 +21,8 @@ jobs:
             os: ubuntu-latest
             name: mcp_linux_ssh-x86_64-linux
 
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            name: mcp_linux_ssh-x86_64-linux-musl
-
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
             name: mcp_linux_ssh-aarch64-linux
 
           - target: x86_64-pc-windows-msvc
@@ -48,16 +47,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools (Linux)
+      - name: Install build dependencies (x86_64 Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-multilib
-          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
-            sudo apt-get install -y musl-tools
-          elif [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-          fi
+          sudo apt-get install -y gcc-multilib libssl-dev
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -71,12 +65,11 @@ jobs:
             ${{ runner.os }}-cargo-${{ matrix.target }}-
             ${{ runner.os }}-cargo-
 
-      - name: Configure cross-compilation environment
+      - name: Install build dependencies (ARM64)
+        if: matrix.os == 'ubuntu-24.04-arm'
         run: |
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          fi
-        shell: bash
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev
 
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
@@ -95,6 +88,7 @@ jobs:
           copy target\${{ matrix.target }}\release\mcp_linux_ssh.exe dist\${{ matrix.name }}${{ matrix.extension }}
 
       - name: Upload to release
+        if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
