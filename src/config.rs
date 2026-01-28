@@ -4,7 +4,7 @@ use better_config::{EnvConfig, env};
 use std::{str::FromStr, sync::Arc};
 use tracing::info;
 
-#[env(EnvConfig(prefix = "MCP_LINUX_SSH_JUDGE_"))]
+#[env(EnvConfig(prefix = "MCP_LINUX_SSH_JUDGE_", target = ""))]
 pub struct JudgeConfig {
     #[conf(from = "SERVICE", default = "")]
     pub service: String,
@@ -46,6 +46,8 @@ impl FromStr for FailMode {
 /// Load judge service from environment variables
 pub async fn load_judge_service() -> Result<Option<Arc<JudgeService>>> {
     // Load configuration from environment variables using builder
+    // Note: With target = "", we skip .env file loading and only use environment variables
+    // The builder will load values directly from the process environment variables
     let config = match JudgeConfig::builder().build() {
         Ok(cfg) => cfg,
         Err(e) => {
